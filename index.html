@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <title>MNS | Market Navigation System</title>
   <style>
+    /* ================================
+       Phase 9.7 — UX Stabilization Boundary
+       Visual Semantics Lock
+       ================================ */
+
     body {
       margin: 0;
       background: #000;
@@ -16,6 +21,7 @@
       overflow: hidden;
     }
 
+    /* Terminal Layout Invariants (LOCKED) */
     .terminal {
       width: 640px;
       height: 420px;
@@ -25,13 +31,50 @@
       overflow: hidden;
       box-shadow: 0 0 20px rgba(0,255,102,0.2);
       position: relative;
+      min-width: 640px;
+      max-width: 640px;
+      min-height: 420px;
+      max-height: 420px;
     }
 
+    /* Base Line Format (LOCKED) */
     .line {
       white-space: pre;
       line-height: 1.35;
+      font-size: 14px;
+      letter-spacing: 0;
     }
 
+    /* Semantic Color Discipline (Green Palette Only) */
+    .line-telemetry {
+      color: #00ff66;
+    }
+
+    .line-heartbeat {
+      color: rgba(0,255,102,0.6);
+    }
+
+    .line-regime {
+      color: #00ff88;
+    }
+
+    .line-event {
+      color: #00ffaa;
+    }
+
+    .line-integrity {
+      color: rgba(0,255,102,0.65);
+    }
+
+    .line-time {
+      color: rgba(0,255,102,0.65);
+    }
+
+    .line-system {
+      color: #00ff66;
+    }
+
+    /* Legacy support */
     .dim {
       color: rgba(0,255,102,0.6);
     }
@@ -108,10 +151,18 @@
     };
 
     /* ---------- Config ---------- */
-    const TICK_MS = 900;
+    /* Cadence Lock (IMMUTABLE) */
+    const TICK_MS = 900; // Fixed render interval, no dynamic adjustment
+    
+    /* Layout Invariants (IMMUTABLE) */
     const MAX_LINES = 120;
     const BAR_WIDTH = 12;
+    
+    /* Semantic Cadence (IMMUTABLE) */
     const HEARTBEAT_INTERVAL = 7;
+    const NARRATIVE_SUMMARY_INTERVAL = 5;
+    
+    /* State Machine Hysteresis (IMMUTABLE) */
     const REGIME_HYSTERESIS = 3;
     const CONFIDENCE_THRESHOLDS = [0.6, 0.8];
     const INTEGRITY_HYSTERESIS = 3;
@@ -121,7 +172,17 @@
     const DRIFT_THRESHOLD_MINOR = 2;
     const DRIFT_THRESHOLD_MAJOR = 5;
     const TICK_HISTORY_SIZE = 10;
-    const NARRATIVE_SUMMARY_INTERVAL = 5;
+
+    /* ---------- Message Schema Contract (FROZEN) ---------- */
+    const MESSAGE_SCHEMA = {
+      TELEMETRY: (content) => `[TELEMETRY  ] ${content}`,
+      HEARTBEAT: (content) => `[HEARTBEAT  ] ${content}`,
+      REGIME: (content) => `[REGIME     ] ${content}`,
+      EVENT: (content) => `[EVENT      ] ${content}`,
+      INTEGRITY: (content) => `[INTEGRITY  ] ${content}`,
+      TIME: (content) => `[TIME       ] ${content}`,
+      SYSTEM: (content) => `[SYSTEM     ] ${content}`
+    };
 
     /* ---------- Narrative Compression Logic ---------- */
     function computeSemanticSignature(type, data) {
@@ -344,6 +405,7 @@
     }
 
     /* ---------- Render Helpers ---------- */
+    /* Progress Bar Format (IMMUTABLE) */
     function depthBar(depth) {
       const filled = Math.round((depth / 100) * BAR_WIDTH);
       const empty = BAR_WIDTH - filled;
@@ -355,7 +417,11 @@
       );
     }
 
+    /* Message Formatting (Contract Enforcement) */
     function formatStreamLine(type, content) {
+      if (MESSAGE_SCHEMA[type]) {
+        return MESSAGE_SCHEMA[type](content);
+      }
       return `[${type.padEnd(11)}] ${content}`;
     }
 
@@ -505,7 +571,7 @@
       // Heartbeat line (every N ticks)
       if (tick % HEARTBEAT_INTERVAL === 0) {
         const heartbeat = document.createElement("div");
-        heartbeat.className = "line dim";
+        heartbeat.className = "line line-heartbeat";
         heartbeat.textContent = generateHeartbeatLine();
         fragment.appendChild(heartbeat);
       }
@@ -513,7 +579,7 @@
       // Time line (on coherence state transition)
       if (timeChanged) {
         const timeLine = document.createElement("div");
-        timeLine.className = "line dim";
+        timeLine.className = "line line-time";
         timeLine.textContent = generateTimeLine();
         fragment.appendChild(timeLine);
       }
@@ -521,7 +587,7 @@
       // Integrity line (on health state transition)
       if (integrityChanged) {
         const integrityLine = document.createElement("div");
-        integrityLine.className = "line dim";
+        integrityLine.className = "line line-integrity";
         integrityLine.textContent = generateIntegrityLine();
         fragment.appendChild(integrityLine);
       }
@@ -529,7 +595,7 @@
       // Regime line (on state change or confidence threshold crossing)
       if (regimeChanged || confidenceThresholdCrossed) {
         const regimeLine = document.createElement("div");
-        regimeLine.className = "line dim";
+        regimeLine.className = "line line-regime";
         regimeLine.textContent = generateRegimeLine();
         fragment.appendChild(regimeLine);
       }
@@ -538,7 +604,7 @@
       const compressedTelemetry = generateCompressedTelemetry();
       compressedTelemetry.forEach(item => {
         const line = document.createElement("div");
-        line.className = "line";
+        line.className = "line line-telemetry";
         line.textContent = formatStreamLine(item.type, item.content);
         fragment.appendChild(line);
       });
@@ -547,7 +613,7 @@
       const eventText = generateEventLine();
       if (eventText) {
         const eventLine = document.createElement("div");
-        eventLine.className = "line";
+        eventLine.className = "line line-event";
         eventLine.textContent = eventText;
         fragment.appendChild(eventLine);
         
@@ -581,11 +647,12 @@
 
       header.forEach(text => {
         const line = document.createElement("div");
-        line.className = "line";
+        line.className = "line line-system";
         line.textContent = text;
         terminal.appendChild(line);
       });
 
+      /* Cadence Lock: Fixed interval, no dynamic adjustment */
       setInterval(() => {
         updateState();
         render(terminal);
