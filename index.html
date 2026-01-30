@@ -45,6 +45,7 @@
        Phase 9.6.1 — Tunnel Visualization Engine
        Phase 9.6.2 — Semantic Stream Structuring
        Phase 9.6.3 — Regime Signals (Pre-Risk, Non-Actionable)
+       Phase 9.6.4 — Integrity Markers (Data Health & Silent Failure Detection)
        ================================ */
 
     /* ---------- Deterministic PRNG ---------- */
@@ -74,6 +75,15 @@
         state: "CALM",
         confidence: 0.0,
         lastChangeTick: 0
+      },
+      integrity: {
+        health: "OK",
+        lastTick: 0,
+        missedTicks: 0,
+        checksum: 0,
+        prevDepth: 72,
+        prevLoad: 0.71,
+        staleTicks: 0
       }
     };
 
@@ -82,8 +92,68 @@
     const MAX_LINES = 120;
     const BAR_WIDTH = 12;
     const HEARTBEAT_INTERVAL = 7;
-    const REGIME_HYSTERESIS = 3; // ticks before regime locks in
+    const REGIME_HYSTERESIS = 3;
     const CONFIDENCE_THRESHOLDS = [0.6, 0.8];
+    const INTEGRITY_HYSTERESIS = 3;
+    const STALE_THRESHOLD = 5;
+    const VALUE_EPSILON = 0.001;
+
+    /* ---------- Integrity Computation Logic ---------- */
+    function computeIntegrity() {
+      const tick = TunnelState.stream.tick;
+      const depth = TunnelState.depth;
+      const avgLoad = TunnelState.nodes.reduce((sum, n) => sum + n.load, 0) / TunnelState.nodes.length;
+      const currentHealth = TunnelState.integrity.health;
+
+      // Check tick continuity (expected: lastTick + 1 = tick)
+      const expectedTick = TunnelState.integrity.lastTick + 1;
+      if (tick !== expectedTick && TunnelState.integrity.lastTick > 0) {
+        TunnelState.integrity.missedTicks++;
+      }
+      TunnelState.integrity.lastTick = tick;
+
+      // Check value continuity (detect frozen values)
+      const depthChange = Math.abs(depth - TunnelState.integrity.prevDepth);
+      const loadChange = Math.abs(avgLoad - TunnelState.integrity.prevLoad);
+      
+      if (depthChange < VALUE_EPSILON && loadChange < VALUE_EPSILON) {
+        TunnelState.integrity.staleTicks++;
+      } else {
+        TunnelState.integrity.staleTicks = 0;
+      }
+
+      TunnelState.integrity.prevDepth = depth;
+      TunnelState.integrity.prevLoad = avgLoad;
+
+      // Compute rolling checksum (simple hash over key state fields)
+      const checksumInput = Math.floor(depth * 1000) + Math.floor(avgLoad * 10000) + tick;
+      TunnelState.integrity.checksum = (TunnelState.integrity.checksum * 31 + checksumInput) >>> 0;
+
+      // Determine health state with hysteresis
+      let targetHealth = "OK";
+      
+      if (TunnelState.integrity.staleTicks >= STALE_THRESHOLD || TunnelState.integrity.missedTicks >= 5) {
+        targetHealth = "STALE";
+      } else if (TunnelState.integrity.missedTicks >= 2 || TunnelState.integrity.staleTicks >= 3) {
+        targetHealth = "DEGRADED";
+      }
+
+      // Apply hysteresis to prevent rapid flipping
+      let integrityChanged = false;
+      if (targetHealth !== currentHealth) {
+        // Only transition after sustained condition
+        const ticksSinceLastChange = tick - (TunnelState.integrity.lastHealthChangeTick || 0);
+        if (!TunnelState.integrity.lastHealthChangeTick || ticksSinceLastChange >= INTEGRITY_HYSTERESIS) {
+          TunnelState.integrity.health = targetHealth;
+          TunnelState.integrity.lastHealthChangeTick = tick;
+          integrityChanged = true;
+        }
+      } else {
+        TunnelState.integrity.lastHealthChangeTick = tick;
+      }
+
+      return integrityChanged;
+    }
 
     /* ---------- Regime Computation Logic ---------- */
     function computeRegime() {
@@ -233,6 +303,14 @@
       );
     }
 
+    function generateIntegrityLine() {
+      const integrity = TunnelState.integrity;
+      return formatStreamLine(
+        "INTEGRITY",
+        `health=${integrity.health} | missedTicks=${integrity.missedTicks}`
+      );
+    }
+
     /* ---------- Render Logic ---------- */
     function render(terminal) {
       const fragment = document.createDocumentFragment();
@@ -240,6 +318,9 @@
       
       // Track previous confidence for threshold crossing detection
       const prevConfidence = TunnelState.regime.confidence;
+
+      // Compute integrity (isolated)
+      const integrityChanged = computeIntegrity();
 
       // Compute regime (isolated)
       const regimeChanged = computeRegime();
@@ -259,6 +340,14 @@
         heartbeat.className = "line dim";
         heartbeat.textContent = generateHeartbeatLine();
         fragment.appendChild(heartbeat);
+      }
+
+      // Integrity line (on health state transition)
+      if (integrityChanged) {
+        const integrityLine = document.createElement("div");
+        integrityLine.className = "line dim";
+        integrityLine.textContent = generateIntegrityLine();
+        fragment.appendChild(integrityLine);
       }
 
       // Regime line (on state change or confidence threshold crossing)
