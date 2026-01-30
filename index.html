@@ -41,7 +41,7 @@
 
   <script>
     /* =========================
-       Phase 11.4 — NAV State Machine
+       Phase 11.6 — Tier 0 Public Implementation
        ========================= */
 
     /* ---- Deterministic PRNG ---- */
@@ -51,6 +51,12 @@
     }
 
     let tick = 1;
+
+    /* ---- Phase 11.6 Access Context (TIER 0 ONLY) ---- */
+    const AccessContext = {
+      current_view_tier: "TIER_0",
+      last_valid_tier: "TIER_0"
+    };
 
     /* ---- Phase 11.4 NAV State Machine (CANONICAL) ---- */
     const NAV_STATE = {
@@ -84,11 +90,11 @@
       COMPRESSION: [REGIMES.EXPANSION, REGIMES.DISLOCATION]
     };
 
-    const MIN_HOLD_TIME = 3; // ticks
+    const MIN_HOLD_TIME = 3;
 
     /* ---- Global State ---- */
     const TunnelState = {
-      phase: "11.4",
+      phase: "11.6",
       status: "STABLE",
       location: "TBILISI_HUB_01",
       depth: 42,
@@ -100,6 +106,51 @@
     const MAX_LINES = 120;
     const logsEl = document.getElementById("logs");
     const navEl = document.getElementById("nav");
+
+    /* ---- Phase 11.6 Sanitization Logic (MANDATORY) ---- */
+    function sanitizeToTier0() {
+      const terminal = document.getElementById("terminal");
+      if (terminal) {
+        logsEl.innerHTML = "";
+        navEl.innerHTML = "";
+      }
+
+      NAV_STATE.regime = "UNKNOWN";
+      NAV_STATE.bias = "NEUTRAL";
+      NAV_STATE.confidence = 0.3;
+      NAV_STATE.sinceTick = 0;
+
+      TunnelState.depth = 50;
+      TunnelState.nodes = [
+        { id: "NODE_01", load: 0.5, status: "NOMINAL" }
+      ];
+
+      AccessContext.current_view_tier = "TIER_0";
+      AccessContext.last_valid_tier = "TIER_0";
+    }
+
+    /* ---- Phase 11.6 Structure Gate (Silent Handshake Stub) ---- */
+    function evaluateIncomingPacket(packet) {
+      const tier0Fields = ["regime", "confidence"];
+      const packetKeys = Object.keys(packet);
+
+      for (const key of packetKeys) {
+        if (key === "bias" || key === "sinceTick" || key === "drivers" || key === "blockers") {
+          sanitizeToTier0();
+          return null;
+        }
+      }
+
+      return packet;
+    }
+
+    /* ---- Phase 11.6 Tier 0 Packet Sanitizer ---- */
+    function sanitizePacketForTier0(rawPacket) {
+      return {
+        regime: rawPacket.regime || "UNKNOWN",
+        confidence: rawPacket.confidence !== undefined ? rawPacket.confidence : 0.3
+      };
+    }
 
     /* ---- Input Snapshot Generation (Deterministic Emulator) ---- */
     function generateInputSnapshot() {
@@ -223,634 +274,94 @@
       evaluateTransition(snapshot);
     }
 
-    /* ---- Render Logic ---- */
-    function renderNAV() {
-      const confidenceLabel =
-        NAV_STATE.confidence >= 0.7 ? "HIGH" :
-        NAV_STATE.confidence >= 0.4 ? "MEDIUM" :
-        "LOW";
+    /* ---- Render Logic (Phase 11.6 Hardened) ---- */
+    function renderNAV(safePacket) {
+      try {
+        const confidenceLabel =
+          safePacket.confidence >= 0.7 ? "HIGH" :
+          safePacket.confidence >= 0.4 ? "MEDIUM" :
+          "LOW";
 
-      navEl.textContent =
-        `[NAV] REGIME: ${NAV_STATE.regime}` +
-        ` | BIAS: ${NAV_STATE.bias}` +
-        ` | CONFIDENCE: ${confidenceLabel}`;
-    }
-
-    function renderLog() {
-      const barLen = 20;
-      const filled = Math.round((TunnelState.depth / 100) * barLen);
-      const bar =
-        "█".repeat(filled) + "░".repeat(barLen - filled);
-
-      const line =
-        `[TELEMETRY] depth=[${bar}] ${TunnelState.depth.toFixed(0)}%` +
-        ` | node:${TunnelState.nodes[0].id}` +
-        ` load:${TunnelState.nodes[0].load.toFixed(2)}`;
-
-      const div = document.createElement("div");
-      div.className = "log";
-      div.textContent = line;
-
-      logsEl.appendChild(div);
-
-      // cap lines
-      while (logsEl.children.length > MAX_LINES) {
-        logsEl.removeChild(logsEl.firstChild);
+        navEl.textContent =
+          `[NAV] REGIME: ${safePacket.regime}` +
+          ` | CONFIDENCE: ${confidenceLabel}`;
+      } catch (e) {
+        sanitizeToTier0();
+        navEl.textContent = `[NAV] REGIME: UNKNOWN | CONFIDENCE: LOW`;
       }
-
-      logsEl.parentElement.scrollTop =
-        logsEl.parentElement.scrollHeight;
     }
 
-    function render() {
-      renderNAV();
-      renderLog();
+    function renderTelemetry() {
+      try {
+        const barLen = 20;
+        const filled = Math.round((TunnelState.depth / 100) * barLen);
+        const bar =
+          "█".repeat(filled) + "░".repeat(barLen - filled);
+
+        const line =
+          `[TELEMETRY] depth=[${bar}] ${TunnelState.depth.toFixed(0)}%` +
+          ` | node:${TunnelState.nodes[0].id}` +
+          ` load:${TunnelState.nodes[0].load.toFixed(2)}`;
+
+        const div = document.createElement("div");
+        div.className = "log";
+        div.textContent = line;
+
+        logsEl.appendChild(div);
+
+        while (logsEl.children.length > MAX_LINES) {
+          logsEl.removeChild(logsEl.firstChild);
+        }
+
+        logsEl.parentElement.scrollTop =
+          logsEl.parentElement.scrollHeight;
+      } catch (e) {
+        sanitizeToTier0();
+      }
+    }
+
+    function renderTick() {
+      try {
+        const rawPacket = {
+          regime: NAV_STATE.regime,
+          confidence: NAV_STATE.confidence,
+          bias: NAV_STATE.bias,
+          sinceTick: NAV_STATE.sinceTick
+        };
+
+        const validatedPacket = evaluateIncomingPacket(rawPacket);
+        if (!validatedPacket) {
+          return;
+        }
+
+        const safePacket = sanitizePacketForTier0(validatedPacket);
+        renderNAV(safePacket);
+        renderTelemetry();
+      } catch (e) {
+        sanitizeToTier0();
+        renderNAV({ regime: "UNKNOWN", confidence: 0.3 });
+      }
     }
 
     /* ---- Render Loop ---- */
-    setInterval(() => {
-      tick++;
-      updateState();
-      render();
-    }, 900);
-  </script>
-</body>
-</html>
-
-  <script>
-    /* ================================
-       Phase 9.6.1 — Tunnel Visualization Engine
-       Phase 9.6.2 — Semantic Stream Structuring
-       Phase 9.6.3 — Regime Signals (Pre-Risk, Non-Actionable)
-       Phase 9.6.4 — Integrity Markers (Data Health & Silent Failure Detection)
-       Phase 9.6.5 — Temporal Coherence (Clock Drift & Time Semantics)
-       Phase 9.6.6 — Narrative Compression (Semantic Density Control)
-       ================================ */
-
-    /* ---------- Deterministic PRNG ---------- */
-    function createPRNG(seed) {
-      let s = seed >>> 0;
-      return function () {
-        s = (s * 1664525 + 1013904223) >>> 0;
-        return s / 4294967296;
-      };
-    }
-    const rand = createPRNG(9461);
-
-    /* ---------- Global State ---------- */
-    const TunnelState = {
-      phase: "9.6",
-      status: "STABLE",
-      location: "TBILISI_HUB_01",
-      depth: 72,
-      nodes: [
-        { id: "TBILISI_01", load: 0.71, status: "STABLE" }
-      ],
-      stream: {
-        tick: 0,
-        lastEvent: null
-      },
-      regime: {
-        state: "CALM",
-        confidence: 0.0,
-        lastChangeTick: 0
-      },
-      integrity: {
-        health: "OK",
-        lastTick: 0,
-        missedTicks: 0,
-        checksum: 0,
-        prevDepth: 72,
-        prevLoad: 0.71,
-        staleTicks: 0
-      },
-      time: {
-        tick: 0,
-        expectedInterval: 1,
-        drift: 0,
-        coherence: "LOCKED",
-        lastCoherenceTick: 0,
-        tickHistory: []
-      },
-      narrative: {
-        lastNodeSignature: null,
-        lastDepthSignature: null,
-        lastHeartbeatSignature: null,
-        nodeRepeatCount: 0,
-        depthRepeatCount: 0,
-        heartbeatRepeatCount: 0,
-        nodeLoadSum: 0,
-        depthSum: 0
-      }
-    };
-
-    /* ---------- Config ---------- */
-    /* Cadence Lock (IMMUTABLE) */
-    const TICK_MS = 900; // Fixed render interval, no dynamic adjustment
-    
-    /* Layout Invariants (IMMUTABLE) */
-    const MAX_LINES = 120;
-    const BAR_WIDTH = 12;
-    
-    /* Semantic Cadence (IMMUTABLE) */
-    const HEARTBEAT_INTERVAL = 7;
-    const NARRATIVE_SUMMARY_INTERVAL = 5;
-    
-    /* State Machine Hysteresis (IMMUTABLE) */
-    const REGIME_HYSTERESIS = 3;
-    const CONFIDENCE_THRESHOLDS = [0.6, 0.8];
-    const INTEGRITY_HYSTERESIS = 3;
-    const STALE_THRESHOLD = 5;
-    const VALUE_EPSILON = 0.001;
-    const TIME_HYSTERESIS = 4;
-    const DRIFT_THRESHOLD_MINOR = 2;
-    const DRIFT_THRESHOLD_MAJOR = 5;
-    const TICK_HISTORY_SIZE = 10;
-
-    /* ---------- Message Schema Contract (FROZEN) ---------- */
-    const MESSAGE_SCHEMA = {
-      TELEMETRY: (content) => `[TELEMETRY  ] ${content}`,
-      HEARTBEAT: (content) => `[HEARTBEAT  ] ${content}`,
-      REGIME: (content) => `[REGIME     ] ${content}`,
-      EVENT: (content) => `[EVENT      ] ${content}`,
-      INTEGRITY: (content) => `[INTEGRITY  ] ${content}`,
-      TIME: (content) => `[TIME       ] ${content}`,
-      SYSTEM: (content) => `[SYSTEM     ] ${content}`
-    };
-
-    /* ---------- Narrative Compression Logic ---------- */
-    function computeSemanticSignature(type, data) {
-      // Generate deterministic semantic hash
-      if (type === "NODE") {
-        const loadBucket = Math.floor(data.load * 20) / 20; // 0.05 buckets
-        return `NODE:${data.id}:${loadBucket.toFixed(2)}:${data.status}`;
-      } else if (type === "DEPTH") {
-        const depthBucket = Math.floor(data.depth / 5) * 5; // 5% buckets
-        return `DEPTH:${depthBucket}`;
-      } else if (type === "HEARTBEAT") {
-        return "HEARTBEAT:OK";
-      }
-      return null;
-    }
-
-    function resetNarrative() {
-      TunnelState.narrative.lastNodeSignature = null;
-      TunnelState.narrative.lastDepthSignature = null;
-      TunnelState.narrative.lastHeartbeatSignature = null;
-      TunnelState.narrative.nodeRepeatCount = 0;
-      TunnelState.narrative.depthRepeatCount = 0;
-      TunnelState.narrative.heartbeatRepeatCount = 0;
-      TunnelState.narrative.nodeLoadSum = 0;
-      TunnelState.narrative.depthSum = 0;
-    }
-
-    /* ---------- Integrity Computation Logic ---------- */
-    function computeIntegrity() {
-      const tick = TunnelState.stream.tick;
-      const depth = TunnelState.depth;
-      const avgLoad = TunnelState.nodes.reduce((sum, n) => sum + n.load, 0) / TunnelState.nodes.length;
-      const currentHealth = TunnelState.integrity.health;
-
-      // Check tick continuity (expected: lastTick + 1 = tick)
-      const expectedTick = TunnelState.integrity.lastTick + 1;
-      if (tick !== expectedTick && TunnelState.integrity.lastTick > 0) {
-        TunnelState.integrity.missedTicks++;
-      }
-      TunnelState.integrity.lastTick = tick;
-
-      // Check value continuity (detect frozen values)
-      const depthChange = Math.abs(depth - TunnelState.integrity.prevDepth);
-      const loadChange = Math.abs(avgLoad - TunnelState.integrity.prevLoad);
-      
-      if (depthChange < VALUE_EPSILON && loadChange < VALUE_EPSILON) {
-        TunnelState.integrity.staleTicks++;
-      } else {
-        TunnelState.integrity.staleTicks = 0;
-      }
-
-      TunnelState.integrity.prevDepth = depth;
-      TunnelState.integrity.prevLoad = avgLoad;
-
-      // Compute rolling checksum (simple hash over key state fields)
-      const checksumInput = Math.floor(depth * 1000) + Math.floor(avgLoad * 10000) + tick;
-      TunnelState.integrity.checksum = (TunnelState.integrity.checksum * 31 + checksumInput) >>> 0;
-
-      // Determine health state with hysteresis
-      let targetHealth = "OK";
-      
-      if (TunnelState.integrity.staleTicks >= STALE_THRESHOLD || TunnelState.integrity.missedTicks >= 5) {
-        targetHealth = "STALE";
-      } else if (TunnelState.integrity.missedTicks >= 2 || TunnelState.integrity.staleTicks >= 3) {
-        targetHealth = "DEGRADED";
-      }
-
-      // Apply hysteresis to prevent rapid flipping
-      let integrityChanged = false;
-      if (targetHealth !== currentHealth) {
-        // Only transition after sustained condition
-        const ticksSinceLastChange = tick - (TunnelState.integrity.lastHealthChangeTick || 0);
-        if (!TunnelState.integrity.lastHealthChangeTick || ticksSinceLastChange >= INTEGRITY_HYSTERESIS) {
-          TunnelState.integrity.health = targetHealth;
-          TunnelState.integrity.lastHealthChangeTick = tick;
-          integrityChanged = true;
-        }
-      } else {
-        TunnelState.integrity.lastHealthChangeTick = tick;
-      }
-
-      return integrityChanged;
-    }
-
-    /* ---------- Temporal Coherence Computation Logic ---------- */
-    function computeTemporalCoherence() {
-      const tick = TunnelState.stream.tick;
-      const currentCoherence = TunnelState.time.coherence;
-
-      // Increment internal time tick
-      TunnelState.time.tick++;
-
-      // Track tick intervals in history
-      const prevTick = TunnelState.time.tickHistory.length > 0 
-        ? TunnelState.time.tickHistory[TunnelState.time.tickHistory.length - 1]
-        : TunnelState.time.tick - 1;
-      
-      const interval = TunnelState.time.tick - prevTick;
-      TunnelState.time.tickHistory.push(TunnelState.time.tick);
-      
-      // Keep history bounded
-      if (TunnelState.time.tickHistory.length > TICK_HISTORY_SIZE) {
-        TunnelState.time.tickHistory.shift();
-      }
-
-      // Calculate drift: deviation from expected interval
-      const deviation = interval - TunnelState.time.expectedInterval;
-      
-      // Accumulate drift with decay
-      TunnelState.time.drift = TunnelState.time.drift * 0.7 + deviation * 0.3;
-
-      // Determine target coherence state based on accumulated drift
-      let targetCoherence = "LOCKED";
-      const absDrift = Math.abs(TunnelState.time.drift);
-      
-      if (absDrift >= DRIFT_THRESHOLD_MAJOR) {
-        targetCoherence = "DESYNC";
-      } else if (absDrift >= DRIFT_THRESHOLD_MINOR) {
-        targetCoherence = "DRIFTING";
-      }
-
-      // Apply hysteresis to prevent rapid state changes
-      let coherenceChanged = false;
-      if (targetCoherence !== currentCoherence) {
-        const ticksSinceLastChange = tick - (TunnelState.time.lastCoherenceTick || 0);
-        if (!TunnelState.time.lastCoherenceTick || ticksSinceLastChange >= TIME_HYSTERESIS) {
-          TunnelState.time.coherence = targetCoherence;
-          TunnelState.time.lastCoherenceTick = tick;
-          coherenceChanged = true;
-        }
-      } else {
-        TunnelState.time.lastCoherenceTick = tick;
-      }
-
-      return coherenceChanged;
-    }
-
-    /* ---------- Regime Computation Logic ---------- */
-    function computeRegime() {
-      const depth = TunnelState.depth;
-      const avgLoad = TunnelState.nodes.reduce((sum, n) => sum + n.load, 0) / TunnelState.nodes.length;
-      const tick = TunnelState.stream.tick;
-      const currentState = TunnelState.regime.state;
-
-      // Determine target regime based on telemetry
-      let targetState;
-      if (depth > 85 || avgLoad > 0.80) {
-        targetState = "COMPRESSED";
-      } else if (depth >= 70 || avgLoad >= 0.65) {
-        targetState = "ELEVATED";
-      } else {
-        targetState = "CALM";
-      }
-
-      // Apply hysteresis: require sustained condition before transition
-      const ticksSinceChange = tick - TunnelState.regime.lastChangeTick;
-      let shouldTransition = false;
-
-      if (targetState !== currentState) {
-        // Check if we've been in "wanting to change" state long enough
-        if (ticksSinceChange >= REGIME_HYSTERESIS) {
-          shouldTransition = true;
-        }
-      }
-
-      // Determine if regime changed
-      let regimeChanged = false;
-      if (shouldTransition) {
-        TunnelState.regime.state = targetState;
-        TunnelState.regime.lastChangeTick = tick;
-        TunnelState.regime.confidence = 0.0;
-        regimeChanged = true;
-      }
-
-      // Update confidence: increases with time in stable regime
-      if (targetState === currentState && !regimeChanged) {
-        const confidenceGrowthRate = 0.08;
-        TunnelState.regime.confidence = Math.min(
-          1.0,
-          TunnelState.regime.confidence + confidenceGrowthRate
-        );
-      }
-
-      return regimeChanged;
-    }
-
-    /* ---------- State Update Logic ---------- */
-    function updateState() {
-      // Increment stream tick
-      TunnelState.stream.tick++;
-
-      // Node load drift (smooth, bounded)
-      TunnelState.nodes.forEach(node => {
-        const drift = (rand() - 0.5) * 0.06;
-        node.load = Math.min(1, Math.max(0, node.load + drift));
-        node.status = "STABLE";
-      });
-
-      // Tunnel depth drift
-      const depthDrift = (rand() - 0.5) * 2;
-      TunnelState.depth = Math.min(
-        100,
-        Math.max(0, TunnelState.depth + depthDrift)
-      );
-
-      // Event detection: depth threshold crossing
-      if (TunnelState.depth >= 85 && TunnelState.stream.lastEvent !== "DEPTH_HIGH") {
-        TunnelState.stream.lastEvent = "DEPTH_HIGH";
-      } else if (TunnelState.depth < 85 && TunnelState.stream.lastEvent === "DEPTH_HIGH") {
-        TunnelState.stream.lastEvent = "DEPTH_NORMAL";
-      }
-
-      // Event detection: load spike
-      const avgLoad = TunnelState.nodes.reduce((sum, n) => sum + n.load, 0) / TunnelState.nodes.length;
-      if (avgLoad >= 0.80 && TunnelState.stream.lastEvent !== "LOAD_SPIKE") {
-        TunnelState.stream.lastEvent = "LOAD_SPIKE";
-      } else if (avgLoad < 0.80 && TunnelState.stream.lastEvent === "LOAD_SPIKE") {
-        TunnelState.stream.lastEvent = "LOAD_NOMINAL";
-      }
-    }
-
-    /* ---------- Render Helpers ---------- */
-    /* Progress Bar Format (IMMUTABLE) */
-    function depthBar(depth) {
-      const filled = Math.round((depth / 100) * BAR_WIDTH);
-      const empty = BAR_WIDTH - filled;
-      return (
-        "[" +
-        "█".repeat(filled) +
-        "░".repeat(empty) +
-        `] ${Math.round(depth)}%`
-      );
-    }
-
-    /* Message Formatting (Contract Enforcement) */
-    function formatStreamLine(type, content) {
-      if (MESSAGE_SCHEMA[type]) {
-        return MESSAGE_SCHEMA[type](content);
-      }
-      return `[${type.padEnd(11)}] ${content}`;
-    }
-
-    function generateCompressedTelemetry() {
-      const results = [];
-      const node = TunnelState.nodes[0];
-      const depth = TunnelState.depth;
-
-      // Compute semantic signatures
-      const nodeSignature = computeSemanticSignature("NODE", { id: node.id, load: node.load, status: node.status });
-      const depthSignature = computeSemanticSignature("DEPTH", { depth });
-
-      // Node telemetry compression
-      if (nodeSignature === TunnelState.narrative.lastNodeSignature) {
-        TunnelState.narrative.nodeRepeatCount++;
-        TunnelState.narrative.nodeLoadSum += node.load;
-
-        // Emit summary every N repeats
-        if (TunnelState.narrative.nodeRepeatCount % NARRATIVE_SUMMARY_INTERVAL === 0) {
-          const avgLoad = TunnelState.narrative.nodeLoadSum / NARRATIVE_SUMMARY_INTERVAL;
-          results.push({
-            type: "TELEMETRY",
-            content: `NODE ${node.id} | LOAD stable (~${avgLoad.toFixed(2)}) | samples=${TunnelState.narrative.nodeRepeatCount}`
-          });
-          TunnelState.narrative.nodeLoadSum = 0;
-        }
-      } else {
-        // New signature, emit full message
-        results.push({
-          type: "TELEMETRY",
-          content: `NODE ${node.id} | LOAD ${node.load.toFixed(2)} | ${node.status}`
-        });
-        TunnelState.narrative.lastNodeSignature = nodeSignature;
-        TunnelState.narrative.nodeRepeatCount = 1;
-        TunnelState.narrative.nodeLoadSum = node.load;
-      }
-
-      // Depth telemetry compression
-      if (depthSignature === TunnelState.narrative.lastDepthSignature) {
-        TunnelState.narrative.depthRepeatCount++;
-        TunnelState.narrative.depthSum += depth;
-
-        // Emit summary every N repeats
-        if (TunnelState.narrative.depthRepeatCount % NARRATIVE_SUMMARY_INTERVAL === 0) {
-          const avgDepth = TunnelState.narrative.depthSum / NARRATIVE_SUMMARY_INTERVAL;
-          results.push({
-            type: "TELEMETRY",
-            content: `TUNNEL DEPTH ${depthBar(avgDepth)} | samples=${TunnelState.narrative.depthRepeatCount}`
-          });
-          TunnelState.narrative.depthSum = 0;
-        }
-      } else {
-        // New signature, emit full message
-        results.push({
-          type: "TELEMETRY",
-          content: `TUNNEL DEPTH ${depthBar(depth)}`
-        });
-        TunnelState.narrative.lastDepthSignature = depthSignature;
-        TunnelState.narrative.depthRepeatCount = 1;
-        TunnelState.narrative.depthSum = depth;
-      }
-
-      return results;
-    }
-
-    function generateHeartbeatLine() {
-      return formatStreamLine("HEARTBEAT", "sync ok | latency stable");
-    }
-
-    function generateEventLine() {
-      const event = TunnelState.stream.lastEvent;
-      if (!event) return null;
-
-      switch (event) {
-        case "DEPTH_HIGH":
-          return formatStreamLine("EVENT", "depth threshold approaching 90%");
-        case "DEPTH_NORMAL":
-          return formatStreamLine("EVENT", "depth returned to nominal range");
-        case "LOAD_SPIKE":
-          return formatStreamLine("EVENT", "load spike detected across nodes");
-        case "LOAD_NOMINAL":
-          return formatStreamLine("EVENT", "load stabilized to nominal levels");
-        default:
-          return null;
-      }
-    }
-
-    function generateRegimeLine() {
-      const regime = TunnelState.regime;
-      return formatStreamLine(
-        "REGIME",
-        `state=${regime.state} | confidence=${regime.confidence.toFixed(2)}`
-      );
-    }
-
-    function generateIntegrityLine() {
-      const integrity = TunnelState.integrity;
-      return formatStreamLine(
-        "INTEGRITY",
-        `health=${integrity.health} | missedTicks=${integrity.missedTicks}`
-      );
-    }
-
-    function generateTimeLine() {
-      const time = TunnelState.time;
-      const driftStr = time.drift >= 0 
-        ? `+${time.drift.toFixed(1)}`
-        : time.drift.toFixed(1);
-      return formatStreamLine(
-        "TIME",
-        `coherence=${time.coherence} | drift=${driftStr}`
-      );
-    }
-
-    /* ---------- Render Logic ---------- */
-    function render(terminal) {
-      const fragment = document.createDocumentFragment();
-      const tick = TunnelState.stream.tick;
-      
-      // Track previous confidence for threshold crossing detection
-      const prevConfidence = TunnelState.regime.confidence;
-
-      // Compute temporal coherence (isolated)
-      const timeChanged = computeTemporalCoherence();
-
-      // Compute integrity (isolated)
-      const integrityChanged = computeIntegrity();
-
-      // Compute regime (isolated)
-      const regimeChanged = computeRegime();
-
-      // Detect confidence threshold crossings
-      let confidenceThresholdCrossed = false;
-      for (const threshold of CONFIDENCE_THRESHOLDS) {
-        if (prevConfidence < threshold && TunnelState.regime.confidence >= threshold) {
-          confidenceThresholdCrossed = true;
-          break;
-        }
-      }
-
-      // Break narrative compression on any significant state transition
-      const narrativeBreak = timeChanged || integrityChanged || regimeChanged || confidenceThresholdCrossed;
-      if (narrativeBreak) {
-        resetNarrative();
-      }
-
-      // Heartbeat line (every N ticks)
-      if (tick % HEARTBEAT_INTERVAL === 0) {
-        const heartbeat = document.createElement("div");
-        heartbeat.className = "line line-heartbeat";
-        heartbeat.textContent = generateHeartbeatLine();
-        fragment.appendChild(heartbeat);
-      }
-
-      // Time line (on coherence state transition)
-      if (timeChanged) {
-        const timeLine = document.createElement("div");
-        timeLine.className = "line line-time";
-        timeLine.textContent = generateTimeLine();
-        fragment.appendChild(timeLine);
-      }
-
-      // Integrity line (on health state transition)
-      if (integrityChanged) {
-        const integrityLine = document.createElement("div");
-        integrityLine.className = "line line-integrity";
-        integrityLine.textContent = generateIntegrityLine();
-        fragment.appendChild(integrityLine);
-      }
-
-      // Regime line (on state change or confidence threshold crossing)
-      if (regimeChanged || confidenceThresholdCrossed) {
-        const regimeLine = document.createElement("div");
-        regimeLine.className = "line line-regime";
-        regimeLine.textContent = generateRegimeLine();
-        fragment.appendChild(regimeLine);
-      }
-
-      // Telemetry lines (compressed, every tick)
-      const compressedTelemetry = generateCompressedTelemetry();
-      compressedTelemetry.forEach(item => {
-        const line = document.createElement("div");
-        line.className = "line line-telemetry";
-        line.textContent = formatStreamLine(item.type, item.content);
-        fragment.appendChild(line);
-      });
-
-      // Event line (on state transition)
-      const eventText = generateEventLine();
-      if (eventText) {
-        const eventLine = document.createElement("div");
-        eventLine.className = "line line-event";
-        eventLine.textContent = eventText;
-        fragment.appendChild(eventLine);
-        
-        // Clear event after rendering to prevent repeats
-        TunnelState.stream.lastEvent = null;
-      }
-
-      terminal.appendChild(fragment);
-
-      // Line cap
-      while (terminal.children.length > MAX_LINES) {
-        terminal.removeChild(terminal.firstChild);
-      }
-
-      // Auto-scroll
-      terminal.scrollTop = terminal.scrollHeight;
-    }
-
-    /* ---------- Boot Sequence ---------- */
-    (function init() {
-      const terminal = document.getElementById("terminal");
-
-      const header = [
-        formatStreamLine("SYSTEM", "MNS (Market Navigation System)"),
-        formatStreamLine("SYSTEM", `Phase ${TunnelState.phase} active — tunnel initialized`),
-        formatStreamLine("SYSTEM", `Location: ${TunnelState.location}`),
-        formatStreamLine("SYSTEM", "Connection: SECURE_ENCRYPTED"),
-        formatStreamLine("SYSTEM", "Access: RESTRICTED_TO_PILOTS"),
-        ""
-      ];
-
-      header.forEach(text => {
-        const line = document.createElement("div");
-        line.className = "line line-system";
-        line.textContent = text;
-        terminal.appendChild(line);
-      });
-
-      /* Cadence Lock: Fixed interval, no dynamic adjustment */
-      setInterval(() => {
+    let renderInterval = null;
+
+    function startRenderLoop() {
+      renderInterval = setInterval(() => {
+        tick++;
         updateState();
-        render(terminal);
-      }, TICK_MS);
+        renderTick();
+      }, 900);
+    }
+
+    /* ---- Boot Sequence (Phase 11.6 Safe Default) ---- */
+    (function init() {
+      sanitizeToTier0();
+      renderNAV({ regime: "UNKNOWN", confidence: 0.3 });
+      
+      setTimeout(() => {
+        startRenderLoop();
+      }, 100);
     })();
   </script>
 </body>
