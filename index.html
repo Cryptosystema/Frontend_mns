@@ -18,183 +18,150 @@
 
     .terminal {
       width: 640px;
+      height: 420px;
       border: 1px solid #00ff66;
-      padding: 20px;
-      box-shadow: 0 0 20px rgba(0,255,100,0.25);
+      padding: 16px;
+      box-sizing: border-box;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0,255,102,0.2);
+      position: relative;
     }
 
-    .log {
+    .line {
       white-space: pre;
-      font-size: 14px;
-      line-height: 1.4;
-      min-height: 220px;
+      line-height: 1.35;
     }
 
-    .divider {
-      margin: 10px 0;
-      border-top: 1px dashed #00ff66;
-    }
-
-    .bar {
-      font-size: 14px;
+    .dim {
+      color: rgba(0,255,102,0.6);
     }
   </style>
 </head>
 <body>
+  <div class="terminal" id="terminal"></div>
 
-<div class="terminal">
-  <div class="log" id="log"></div>
-  <div class="divider"></div>
-  <div class="bar" id="bar"></div>
-</div>
+  <script>
+    /* ================================
+       Phase 9.6.1 — Tunnel Visualization Engine
+       ================================ */
 
-<script>
-  // ========== PHASE 9.6.1: TUNNEL VISUALIZATION ENGINE ==========
+    /* ---------- Deterministic PRNG ---------- */
+    function createPRNG(seed) {
+      let s = seed >>> 0;
+      return function () {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+    const rand = createPRNG(9461);
 
-  // DOM References
-  const logEl = document.getElementById("log");
-  const barEl = document.getElementById("bar");
+    /* ---------- Global State ---------- */
+    const TunnelState = {
+      phase: "9.6",
+      status: "STABLE",
+      location: "TBILISI_HUB_01",
+      depth: 72,
+      nodes: [
+        { id: "TBILISI_01", load: 0.71, status: "STABLE" }
+      ]
+    };
 
-  // Global State Object (Single Source of Truth)
-  const TunnelState = {
-    phase: "9.6",
-    status: "STABLE",
-    location: "TBILISI_HUB_01",
-    depth: 68.0,
-    nodes: [
-      { id: "TBILISI_01", load: 0.68, status: "STABLE" },
-      { id: "GLOBAL_ENTRY", load: 0.54, status: "STABLE" },
-      { id: "BACKBONE_03", load: 0.72, status: "STABLE" }
-    ],
-    tick: 0,
-    maxLogLines: 14
-  };
+    /* ---------- Config ---------- */
+    const TICK_MS = 900;
+    const MAX_LINES = 120;
+    const BAR_WIDTH = 12;
 
-  // Seeded Pseudo-Random Number Generator (Deterministic)
-  let seed = 9601;
-  function seededRandom() {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
-  }
-
-  // ========== STATE UPDATE LOGIC ==========
-
-  function updateTunnelState() {
-    TunnelState.tick++;
-
-    // Update tunnel depth (slow, bounded drift)
-    const depthDrift = (seededRandom() - 0.5) * 0.3;
-    TunnelState.depth = Math.min(100, Math.max(0, TunnelState.depth + depthDrift));
-
-    // Update each node load (smooth, bounded)
-    TunnelState.nodes.forEach(node => {
-      const loadDrift = (seededRandom() - 0.5) * 0.04;
-      node.load = Math.min(0.98, Math.max(0.15, node.load + loadDrift));
-
-      // Determine status based on load
-      if (node.load < 0.3) {
-        node.status = "IDLE";
-      } else if (node.load < 0.75) {
+    /* ---------- State Update Logic ---------- */
+    function updateState() {
+      // Node load drift (smooth, bounded)
+      TunnelState.nodes.forEach(node => {
+        const drift = (rand() - 0.5) * 0.06;
+        node.load = Math.min(1, Math.max(0, node.load + drift));
         node.status = "STABLE";
-      } else if (node.load < 0.9) {
-        node.status = "HIGH_LOAD";
-      } else {
-        node.status = "CRITICAL";
+      });
+
+      // Tunnel depth drift
+      const depthDrift = (rand() - 0.5) * 2;
+      TunnelState.depth = Math.min(
+        100,
+        Math.max(0, TunnelState.depth + depthDrift)
+      );
+    }
+
+    /* ---------- Render Helpers ---------- */
+    function depthBar(depth) {
+      const filled = Math.round((depth / 100) * BAR_WIDTH);
+      const empty = BAR_WIDTH - filled;
+      return (
+        "[" +
+        "█".repeat(filled) +
+        "░".repeat(empty) +
+        `] ${Math.round(depth)}%`
+      );
+    }
+
+    function telemetryLine() {
+      const node = TunnelState.nodes[0];
+      return (
+        `> NODE ${node.id} | ` +
+        `LOAD ${node.load.toFixed(2)} | ` +
+        `STATUS ${node.status}`
+      );
+    }
+
+    /* ---------- Render Logic ---------- */
+    function render(terminal) {
+      const fragment = document.createDocumentFragment();
+
+      // Telemetry line
+      const line = document.createElement("div");
+      line.className = "line";
+      line.textContent = telemetryLine();
+      fragment.appendChild(line);
+
+      // Depth bar
+      const bar = document.createElement("div");
+      bar.className = "line dim";
+      bar.textContent = `TUNNEL DEPTH ${depthBar(TunnelState.depth)}`;
+      fragment.appendChild(bar);
+
+      terminal.appendChild(fragment);
+
+      // Line cap
+      while (terminal.children.length > MAX_LINES) {
+        terminal.removeChild(terminal.firstChild);
       }
-    });
 
-    // System status based on average load
-    const avgLoad = TunnelState.nodes.reduce((sum, n) => sum + n.load, 0) / TunnelState.nodes.length;
-    if (avgLoad < 0.75) {
-      TunnelState.status = "STABLE";
-    } else if (avgLoad < 0.85) {
-      TunnelState.status = "ELEVATED";
-    } else {
-      TunnelState.status = "WARNING";
+      // Auto-scroll
+      terminal.scrollTop = terminal.scrollHeight;
     }
-  }
 
-  // ========== RENDER LOGIC ==========
+    /* ---------- Boot Sequence ---------- */
+    (function init() {
+      const terminal = document.getElementById("terminal");
 
-  function writeLog(line) {
-    const lines = logEl.textContent.split("\n");
-    if (lines.length > TunnelState.maxLogLines) {
-      lines.shift();
-    }
-    logEl.textContent = lines.join("\n") + line + "\n";
-    logEl.scrollTop = logEl.scrollHeight;
-  }
+      const header = [
+        `> SYSTEM: MNS (Market Navigation System)`,
+        `> STATUS: ${TunnelState.status}`,
+        `> LOCATION: ${TunnelState.location}`,
+        `> CONNECTION: SECURE_ENCRYPTED`,
+        `> ACCESS: RESTRICTED_TO_PILOTS`,
+        `> SYNC PHASE: ${TunnelState.phase}`,
+        `>`
+      ];
 
-  function renderProgressBar(value, width = 16) {
-    const filled = Math.round((value / 100) * width);
-    const empty = width - filled;
-    const bar = "█".repeat(filled) + "░".repeat(empty);
-    const pct = Math.round(value);
-    return `[${bar}] ${pct}%`;
-  }
+      header.forEach(text => {
+        const line = document.createElement("div");
+        line.className = "line";
+        line.textContent = text;
+        terminal.appendChild(line);
+      });
 
-  function renderNodeLine(node) {
-    const loadStr = node.load.toFixed(2);
-    return `> NODE ${node.id.padEnd(16)} | LOAD ${loadStr} | ${node.status}`;
-  }
-
-  function renderTelemetry() {
-    const timestamp = `T+${String(TunnelState.tick).padStart(5, "0")}`;
-    const sysStatus = `SYSTEM ${TunnelState.status}`;
-    writeLog(`${timestamp} | ${sysStatus}`);
-
-    // Render node status every 3 ticks
-    if (TunnelState.tick % 3 === 0) {
-      const nodeIndex = Math.floor(TunnelState.tick / 3) % TunnelState.nodes.length;
-      writeLog(renderNodeLine(TunnelState.nodes[nodeIndex]));
-    }
-  }
-
-  function renderBar() {
-    barEl.textContent = 
-      `TUNNEL DEPTH (PHASE ${TunnelState.phase})\n` +
-      `${renderProgressBar(TunnelState.depth)}\n` +
-      `LOCATION: ${TunnelState.location}`;
-  }
-
-  // ========== INITIALIZATION & TICK LOOP ==========
-
-  function init() {
-    const bootSequence = [
-      "> SYSTEM: MNS (Market Navigation System)",
-      "> STATUS: INITIALIZING",
-      "> LOCATION: TBILISI_HUB_01",
-      "> CONNECTION: SECURE_ENCRYPTED",
-      "> ACCESS: RESTRICTED_TO_PILOTS",
-      `> SYNC PHASE: ${TunnelState.phase}`,
-      "> TUNNEL VISUALIZATION ENGINE: ACTIVE",
-      ">",
-    ];
-
-    let i = 0;
-    const bootTimer = setInterval(() => {
-      writeLog(bootSequence[i]);
-      i++;
-      if (i === bootSequence.length) {
-        clearInterval(bootTimer);
-        startTunnelLoop();
-      }
-    }, 400);
-  }
-
-  function startTunnelLoop() {
-    renderBar();
-
-    setInterval(() => {
-      updateTunnelState();
-      renderTelemetry();
-      renderBar();
-    }, 1200);
-  }
-
-  // Boot
-  init();
-</script>
-
+      setInterval(() => {
+        updateState();
+        render(terminal);
+      }, TICK_MS);
+    })();
+  </script>
 </body>
 </html>
