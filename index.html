@@ -41,7 +41,7 @@
 
   <script>
     /* =========================
-       Phase 11.1 — Observability
+       Phase 11.4 — NAV State Machine
        ========================= */
 
     /* ---- Deterministic PRNG ---- */
@@ -52,61 +52,161 @@
 
     let tick = 1;
 
+    /* ---- Phase 11.4 NAV State Machine (CANONICAL) ---- */
+    const NAV_STATE = {
+      regime: "ACCUMULATION",
+      bias: "NEUTRAL",
+      confidence: 0.5,
+      sinceTick: 0
+    };
+
+    /* ---- Phase 11.3 Regime Taxonomy (IMMUTABLE) ---- */
+    const REGIMES = {
+      ACCUMULATION: "ACCUMULATION",
+      EXPANSION: "EXPANSION",
+      DISLOCATION: "DISLOCATION",
+      EXHAUSTION: "EXHAUSTION",
+      COMPRESSION: "COMPRESSION"
+    };
+
+    const BIAS = {
+      BULLISH: "BULLISH",
+      BEARISH: "BEARISH",
+      NEUTRAL: "NEUTRAL"
+    };
+
+    /* ---- Phase 11.3 Transition Rules (IMMUTABLE) ---- */
+    const FORBIDDEN_TRANSITIONS = {
+      ACCUMULATION: [REGIMES.DISLOCATION, REGIMES.EXHAUSTION],
+      EXPANSION: [REGIMES.ACCUMULATION, REGIMES.COMPRESSION],
+      DISLOCATION: [REGIMES.ACCUMULATION, REGIMES.EXPANSION],
+      EXHAUSTION: [REGIMES.ACCUMULATION, REGIMES.EXPANSION],
+      COMPRESSION: [REGIMES.EXPANSION, REGIMES.DISLOCATION]
+    };
+
+    const MIN_HOLD_TIME = 3; // ticks
+
     /* ---- Global State ---- */
     const TunnelState = {
-      phase: "9.6",
+      phase: "11.4",
       status: "STABLE",
       location: "TBILISI_HUB_01",
       depth: 42,
       nodes: [
         { id: "TBILISI_01", load: 0.52, status: "STABLE" }
-      ],
-      nav: {
-        regime: "ACCUMULATION",
-        bias: "NEUTRAL",
-        confidence: "MEDIUM",
-        risk: "NORMAL"
-      }
+      ]
     };
 
     const MAX_LINES = 120;
     const logsEl = document.getElementById("logs");
     const navEl = document.getElementById("nav");
 
-    /* ---- Phase 10.4 NOP Emulator ---- */
-    function updateNavigationLayer() {
-      const r = seededRandom(tick);
+    /* ---- Input Snapshot Generation (Deterministic Emulator) ---- */
+    function generateInputSnapshot() {
+      const r1 = seededRandom(tick * 7);
+      const r2 = seededRandom(tick * 13);
+      const r3 = seededRandom(tick * 19);
+      const r4 = seededRandom(tick * 23);
+      const r5 = seededRandom(tick * 29);
 
-      // regime rotation (emulated, mutually exclusive)
-      const regimes = [
-        "ACCUMULATION",
-        "EXPANSION",
-        "COMPRESSION",
-        "EXHAUSTION",
-        "DISLOCATION"
-      ];
-      const regime = regimes[Math.floor(r * regimes.length)];
+      return {
+        volatility_index: r1,
+        liquidity_gap_score: r2,
+        momentum_score: (r3 - 0.5) * 2,
+        compression_score: r4,
+        exhaustion_score: r5,
+        timestamp: tick
+      };
+    }
 
-      let bias = "UNDEFINED";
-      if (regime === "EXPANSION") bias = r > 0.5 ? "BULLISH" : "BEARISH";
-      if (regime === "ACCUMULATION") bias = "NEUTRAL";
+    /* ---- Phase 11.4 Transition Evaluation Pipeline (STRICT ORDER) ---- */
+    function evaluateTransition(snapshot) {
+      const currentRegime = NAV_STATE.regime;
+      const currentBias = NAV_STATE.bias;
 
-      const confidence = r > 0.75 ? "HIGH" : r > 0.4 ? "MEDIUM" : "LOW";
-      const risk =
-        regime === "DISLOCATION"
-          ? "EXTREME"
-          : r > 0.7
-          ? "ELEVATED"
-          : "NORMAL";
+      // Step a) Shock detection
+      const isShock = snapshot.volatility_index > 0.90;
+      
+      // Step b) Regime candidate detection
+      let candidateRegime = currentRegime;
+      let candidateBias = currentBias;
+      let candidateConfidence = NAV_STATE.confidence;
 
-      TunnelState.nav = { regime, bias, confidence, risk };
+      if (isShock) {
+        candidateRegime = REGIMES.DISLOCATION;
+        candidateBias = snapshot.momentum_score > 0 ? BIAS.BEARISH : BIAS.BULLISH;
+        candidateConfidence = 0.8;
+      } else {
+        // Normal regime detection logic
+        if (snapshot.compression_score > 0.75) {
+          candidateRegime = REGIMES.COMPRESSION;
+          candidateConfidence = 0.7;
+        } else if (snapshot.exhaustion_score > 0.80) {
+          candidateRegime = REGIMES.EXHAUSTION;
+          candidateConfidence = 0.75;
+        } else if (snapshot.momentum_score > 0.6) {
+          candidateRegime = REGIMES.EXPANSION;
+          candidateBias = BIAS.BULLISH;
+          candidateConfidence = 0.65;
+        } else if (snapshot.momentum_score < -0.6) {
+          candidateRegime = REGIMES.EXPANSION;
+          candidateBias = BIAS.BEARISH;
+          candidateConfidence = 0.65;
+        } else if (snapshot.liquidity_gap_score < 0.3) {
+          candidateRegime = REGIMES.ACCUMULATION;
+          candidateBias = BIAS.NEUTRAL;
+          candidateConfidence = 0.6;
+        } else {
+          // No clear signal, drift confidence down
+          candidateConfidence = Math.max(0.3, NAV_STATE.confidence - 0.05);
+        }
+      }
+
+      // If no regime change detected, return early
+      if (candidateRegime === currentRegime) {
+        // Update confidence only
+        NAV_STATE.confidence = candidateConfidence;
+        NAV_STATE.sinceTick++;
+        return;
+      }
+
+      // Step c) Forbidden transition check
+      const forbidden = FORBIDDEN_TRANSITIONS[currentRegime] || [];
+      if (forbidden.includes(candidateRegime)) {
+        // REJECT: forbidden transition
+        NAV_STATE.sinceTick++;
+        return;
+      }
+
+      // Step d) Min Hold Time check
+      if (NAV_STATE.sinceTick < MIN_HOLD_TIME) {
+        // REJECT: min hold time not satisfied
+        NAV_STATE.sinceTick++;
+        return;
+      }
+
+      // Step e) Bias drift constraint check
+      if (candidateBias !== currentBias) {
+        // Bias change requires NEUTRAL intermediate OR shock override
+        if (currentBias !== BIAS.NEUTRAL && candidateBias !== BIAS.NEUTRAL && !isShock) {
+          // REJECT: cannot flip bias directly without NEUTRAL
+          NAV_STATE.sinceTick++;
+          return;
+        }
+      }
+
+      // Step f) State commit
+      NAV_STATE.regime = candidateRegime;
+      NAV_STATE.bias = candidateBias;
+      NAV_STATE.confidence = candidateConfidence;
+      NAV_STATE.sinceTick = 0;
     }
 
     /* ---- State Update Logic ---- */
     function updateState() {
       const r = seededRandom(tick);
 
-      // smooth bounded drift
+      // Smooth bounded drift
       TunnelState.depth = Math.min(
         100,
         Math.max(0, TunnelState.depth + (r - 0.5) * 2)
@@ -116,17 +216,24 @@
         n.load = Math.min(1, Math.max(0, n.load + (r - 0.5) * 0.05));
       });
 
-      updateNavigationLayer();
+      // Generate input snapshot from emulator
+      const snapshot = generateInputSnapshot();
+
+      // Evaluate NAV state transition
+      evaluateTransition(snapshot);
     }
 
     /* ---- Render Logic ---- */
     function renderNAV() {
-      const n = TunnelState.nav;
+      const confidenceLabel =
+        NAV_STATE.confidence >= 0.7 ? "HIGH" :
+        NAV_STATE.confidence >= 0.4 ? "MEDIUM" :
+        "LOW";
+
       navEl.textContent =
-        `[NAV] REGIME:${n.regime}` +
-        ` | BIAS:${n.bias}` +
-        ` | CONFIDENCE:${n.confidence}` +
-        ` | RISK:${n.risk}`;
+        `[NAV] REGIME: ${NAV_STATE.regime}` +
+        ` | BIAS: ${NAV_STATE.bias}` +
+        ` | CONFIDENCE: ${confidenceLabel}`;
     }
 
     function renderLog() {
