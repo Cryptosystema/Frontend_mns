@@ -48,7 +48,7 @@
 
   <script>
     /* =========================
-       Phase 18.2 — Unified Validation Pipeline
+       Phase 19.5 — Full Streaming Implementation (SSE Client)
        Market Navigation System (MNS)
        Target: mns.com.ge
        Mode: Protocol-Grade, Multi-Tier, Fail-Closed
@@ -137,6 +137,16 @@
 
     /* ---- REENTRANCY LOCK (PHASE 15.2) ---- */
     let validationEpoch = 0;
+
+    /* ---- SSE CLIENT STATE (PHASE 19.5) ---- */
+    const SSE_URL = "/stream";
+    const DMS_TIMEOUT = 10000; // 10 seconds
+    const THROTTLE_MS = 1000; // 1 Hz
+    const MAX_PAYLOAD_SIZE = 16384; // 16 KB
+    
+    let es = null;
+    let dmsTimer = null;
+    let lastAcceptedAt = 0;
 
     /* ---- DOM REFERENCES ---- */
     const navEl = document.getElementById("nav");
@@ -411,8 +421,8 @@
     /* Global state holder (for potential future Tier 1 state) */
     let currentPacket = null;
 
-    /* Sanitize to Tier 0 (Phase 18.2: Unified Downgrade) */
-    function sanitizeToTier0() {
+    /* Sanitize to Tier 0 (Phase 19.5: Full Sanitization) */
+    function sanitizeAll() {
       try {
         validationEpoch++;
         
@@ -427,7 +437,7 @@
           regime: STATIC_NAV_PACKET.regime,
           risk: STATIC_NAV_PACKET.risk,
           confidence: STATIC_NAV_PACKET.confidence,
-          status: STATIC_NAV_PACKET.status,
+          status: "STALE",
           scope: STATIC_NAV_PACKET.scope
         });
 
@@ -438,6 +448,11 @@
         currentPacket = null;
         triggerFailSafe();
       }
+    }
+
+    /* Legacy alias for backward compatibility */
+    function sanitizeToTier0() {
+      sanitizeAll();
     }
 
     /* ---- PHASE 15.1: PACKET INGESTION (Validation Integration) ---- */
@@ -589,11 +604,112 @@
       }
     }
 
-    /* ---- BOOT SEQUENCE (Static Render Only) ---- */
+    /* ---- PHASE 19.5: DMS (DEAD MAN'S SWITCH) ---- */
+
+    function clearDMS() {
+      if (dmsTimer !== null) {
+        clearTimeout(dmsTimer);
+        dmsTimer = null;
+      }
+    }
+
+    function armDMS() {
+      clearDMS();
+      dmsTimer = setTimeout(() => {
+        sanitizeAll();
+      }, DMS_TIMEOUT);
+    }
+
+    function resetDMS() {
+      armDMS();
+    }
+
+    /* ---- PHASE 19.5: SSE EVENT HANDLERS ---- */
+
+    async function handleNavUpdate(event) {
+      try {
+        const now = Date.now();
+        
+        // Throttle check (1 Hz hard limit)
+        if (now - lastAcceptedAt < THROTTLE_MS) {
+          return; // Silent drop
+        }
+        
+        // Size cap (16 KB)
+        const data = event.data;
+        if (!data || typeof data !== 'string') {
+          sanitizeAll();
+          return;
+        }
+        
+        if (data.length > MAX_PAYLOAD_SIZE) {
+          sanitizeAll();
+          return;
+        }
+        
+        // Parse JSON
+        let packet;
+        try {
+          packet = JSON.parse(data);
+        } catch (err) {
+          sanitizeAll();
+          return;
+        }
+        
+        // Update throttle timestamp
+        lastAcceptedAt = now;
+        
+        // Run unified validation pipeline
+        await updateState(packet);
+        
+        // Reset DMS on successful validation
+        resetDMS();
+        
+      } catch (err) {
+        sanitizeAll();
+      }
+    }
+
+    function handleKeepAlive(event) {
+      try {
+        // Only reset DMS, no render
+        resetDMS();
+      } catch (err) {
+        // Ignore errors
+      }
+    }
+
+    function handleSSEError(event) {
+      // Let DMS handle disconnection
+      // No explicit action here (EventSource will auto-reconnect)
+    }
+
+    /* ---- PHASE 19.5: SSE INITIALIZATION ---- */
+
+    function initSSE() {
+      try {
+        es = new EventSource(SSE_URL);
+        
+        es.addEventListener("nav_update", handleNavUpdate);
+        es.addEventListener("keep_alive", handleKeepAlive);
+        es.addEventListener("error", handleSSEError);
+        
+        // Arm DMS on initial connection
+        armDMS();
+        
+      } catch (err) {
+        sanitizeAll();
+      }
+    }
+
+    /* ---- BOOT SEQUENCE (SSE + Static Render) ---- */
     (function init() {
       try {
         renderNAV(0, STATIC_NAV_PACKET);
         renderStatus();
+        
+        // Initialize SSE client
+        initSSE();
 
       } catch (err) {
         triggerFailSafe();
