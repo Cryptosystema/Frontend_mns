@@ -43,28 +43,22 @@
 
   <script>
     /* =========================
-       Phase 12B — Tier 0 Observability & Public Release
+       Phase 12B.1 — Public NAV Stub
        Market Navigation System (MNS)
        Target: mns.com.ge
-       Mode: UI-only, deterministic, audit-grade
+       Mode: Static, Tier 0, Public-safe
        ========================= */
 
     "use strict";
 
-    /* ---- TIER 0 CANONICAL NAV STATE (READ-ONLY INTERFACE) ---- */
-    const NAV_STATE = Object.seal({
+    /* ---- TIER 0 STATIC NAV PACKET (IMMUTABLE) ---- */
+    const STATIC_NAV_PACKET = Object.freeze({
       regime: "COMPRESSION",
       risk: "NORMAL",
-      confidence: "MED",
-      status: "LIVE"
+      confidence: "MEDIUM",
+      status: "LIVE",
+      scope: "PUBLIC"
     });
-
-    /* ---- DETERMINISTIC PRNG (Seeded) ---- */
-    let SEED = 42;
-    function seededRandom() {
-      SEED = (SEED * 9301 + 49297) % 233280;
-      return SEED / 233280;
-    }
 
     /* ---- REGIME CATALOG (IMMUTABLE) ---- */
     const REGIMES = Object.freeze([
@@ -85,47 +79,13 @@
     /* ---- CONFIDENCE LEVELS (IMMUTABLE) ---- */
     const CONFIDENCE_LEVELS = Object.freeze([
       "LOW",
-      "MED",
+      "MEDIUM",
       "HIGH"
     ]);
 
     /* ---- DOM REFERENCES ---- */
     const navEl = document.getElementById("nav");
     const statusEl = document.getElementById("status");
-
-    /* ---- ARCHITECTURE: UPDATE STATE (Deterministic Mock Engine) ---- */
-    function updateState() {
-      try {
-        const r1 = seededRandom();
-        const r2 = seededRandom();
-        const r3 = seededRandom();
-
-        // Deterministic regime rotation
-        if (r1 < 0.1) {
-          const idx = Math.floor(r2 * REGIMES.length);
-          NAV_STATE.regime = REGIMES[idx];
-        }
-
-        // Deterministic risk assignment
-        if (r2 < 0.15) {
-          const idx = Math.floor(r3 * RISK_LEVELS.length);
-          NAV_STATE.risk = RISK_LEVELS[idx];
-        }
-
-        // Deterministic confidence drift
-        if (r3 < 0.2) {
-          const idx = Math.floor(r1 * CONFIDENCE_LEVELS.length);
-          NAV_STATE.confidence = CONFIDENCE_LEVELS[idx];
-        }
-
-        // Status is always LIVE unless fail-safe triggered
-        NAV_STATE.status = "LIVE";
-
-      } catch (err) {
-        // Trigger fail-safe on any error
-        triggerFailSafe();
-      }
-    }
 
     /* ---- ARCHITECTURE: SANITIZE FOR TIER 0 (Deep Clone + Strip) ---- */
     function sanitizeForTier0(state) {
@@ -135,7 +95,8 @@
           regime: state.regime,
           risk: state.risk,
           confidence: state.confidence,
-          status: state.status
+          status: state.status,
+          scope: state.scope
         };
 
         // Validate structure
@@ -151,6 +112,9 @@
         if (sanitized.status !== "LIVE" && sanitized.status !== "UNKNOWN") {
           throw new Error("Invalid status");
         }
+        if (sanitized.scope !== "PUBLIC" && sanitized.scope !== undefined) {
+          throw new Error("Invalid scope");
+        }
 
         return sanitized;
 
@@ -160,7 +124,8 @@
           regime: "UNKNOWN",
           risk: "NORMAL",
           confidence: "LOW",
-          status: "UNKNOWN"
+          status: "UNKNOWN",
+          scope: "PUBLIC"
         };
       }
     }
@@ -174,7 +139,8 @@
           `[NAV] REGIME: ${safeState.regime}` +
           ` | RISK: ${safeState.risk}` +
           ` | CONFIDENCE: ${safeState.confidence}` +
-          ` | STATUS: ${safeState.status}`;
+          ` | STATUS: ${safeState.status}` +
+          ` | SCOPE: ${safeState.scope}`;
 
         navEl.textContent = navLine;
 
@@ -188,9 +154,9 @@
     function renderStatus() {
       try {
         const statusLine =
-          `[STATUS] SYSTEM: LIVE` +
+          `[STATUS] SYSTEM: STABLE` +
           ` | MODE: TIER_0` +
-          ` | STREAM: PRESENT_STATE`;
+          ` | STREAM: STATIC`;
 
         statusEl.textContent = statusLine;
 
@@ -211,51 +177,18 @@
         navEl.textContent = "[NAV] STATE: UNKNOWN";
         statusEl.textContent = "[STATUS] SYSTEM: SAFE_MODE | MODE: TIER_0";
 
-        // Reset NAV_STATE to safe defaults
-        NAV_STATE.regime = "COMPRESSION";
-        NAV_STATE.risk = "NORMAL";
-        NAV_STATE.confidence = "MED";
-        NAV_STATE.status = "UNKNOWN";
-
       } catch (err) {
         // Ultimate fail-safe: blank screen
         document.getElementById("terminal").innerHTML = "";
       }
     }
 
-    /* ---- MAIN TICK CYCLE (Deterministic Interval) ---- */
-    const TICK_INTERVAL = 3000; // 3 seconds
-    let tickCount = 0;
-
-    function tick() {
-      try {
-        tickCount++;
-
-        // Update state
-        updateState();
-
-        // Render NAV
-        renderNAV(NAV_STATE);
-
-        // Render status heartbeat every 5 ticks
-        if (tickCount % 5 === 0) {
-          renderStatus();
-        }
-
-      } catch (err) {
-        triggerFailSafe();
-      }
-    }
-
-    /* ---- BOOT SEQUENCE ---- */
+    /* ---- BOOT SEQUENCE (Static Render Only) ---- */
     (function init() {
       try {
-        // Initial render
-        renderNAV(NAV_STATE);
+        // Render static NAV packet through normal pipeline
+        renderNAV(STATIC_NAV_PACKET);
         renderStatus();
-
-        // Start deterministic tick loop
-        setInterval(tick, TICK_INTERVAL);
 
       } catch (err) {
         triggerFailSafe();
