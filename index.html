@@ -32,6 +32,11 @@
       opacity: 0.7;
       margin-bottom: 20px;
       letter-spacing: 0.5px;
+      animation: heartbeat 4s ease-in-out infinite;
+    }
+    @keyframes heartbeat {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 0.85; }
     }
   </style>
 </head>
@@ -43,10 +48,10 @@
 
   <script>
     /* =========================
-       Phase 12B.1 — Public NAV Stub
+       Phase 12B.2 — Tier 0 Observability
        Market Navigation System (MNS)
        Target: mns.com.ge
-       Mode: Static, Tier 0, Public-safe
+       Mode: Static, Tier 0, Public-safe, Observable
        ========================= */
 
     "use strict";
@@ -154,15 +159,15 @@
     function renderStatus() {
       try {
         const statusLine =
-          `[STATUS] SYSTEM: STABLE` +
-          ` | MODE: TIER_0` +
-          ` | STREAM: STATIC`;
+          `[STATUS] LIVE` +
+          ` | SOURCE: PRESENT_STATE` +
+          ` | MODE: READ_ONLY`;
 
         statusEl.textContent = statusLine;
 
       } catch (err) {
         // Fail-safe render
-        statusEl.textContent = "[STATUS] SYSTEM: SAFE_MODE | MODE: TIER_0";
+        statusEl.textContent = "[STATUS] OFFLINE";
       }
     }
 
@@ -175,7 +180,7 @@
 
         // Render fail-safe state
         navEl.textContent = "[NAV] STATE: UNKNOWN";
-        statusEl.textContent = "[STATUS] SYSTEM: SAFE_MODE | MODE: TIER_0";
+        statusEl.textContent = "[STATUS] OFFLINE";
 
       } catch (err) {
         // Ultimate fail-safe: blank screen
