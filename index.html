@@ -48,13 +48,17 @@
 
   <script>
     /* =========================
-       Phase 12B.2 — Tier 0 Observability
+       Phase 15.1 — Tier 1 Validation Infrastructure (No UI)
        Market Navigation System (MNS)
        Target: mns.com.ge
-       Mode: Static, Tier 0, Public-safe, Observable
+       Mode: Defense-in-Depth, Cryptographic Gate
        ========================= */
 
     "use strict";
+
+    /* ---- CRYPTOGRAPHIC ANCHORS (IMMUTABLE) ---- */
+    const PUB_KEY_BASE64 = "REPLACE_WITH_BASE64_44_CHARS";
+    const MAX_SKEW_MS = 30000;
 
     /* ---- TIER 0 STATIC NAV PACKET (IMMUTABLE) ---- */
     const STATIC_NAV_PACKET = Object.freeze({
@@ -91,6 +95,221 @@
     /* ---- DOM REFERENCES ---- */
     const navEl = document.getElementById("nav");
     const statusEl = document.getElementById("status");
+
+    /* ---- PHASE 15.1: CRYPTOGRAPHIC VALIDATION (Web Crypto API) ---- */
+
+    /* Base64 → Uint8Array */
+    function decodeBase64ToUint8(base64) {
+      try {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      } catch (err) {
+        throw new Error("Invalid Base64");
+      }
+    }
+
+    /* Import Ed25519 Public Key */
+    async function importPublicKey(base64) {
+      try {
+        const keyData = decodeBase64ToUint8(base64);
+        return await crypto.subtle.importKey(
+          "raw",
+          keyData,
+          {
+            name: "Ed25519",
+            namedCurve: "Ed25519"
+          },
+          false,
+          ["verify"]
+        );
+      } catch (err) {
+        throw new Error("Key import failed");
+      }
+    }
+
+    /* Verify Ed25519 Signature */
+    async function verifySignature(payloadUint8, signatureUint8, publicKey) {
+      try {
+        return await crypto.subtle.verify(
+          "Ed25519",
+          publicKey,
+          signatureUint8,
+          payloadUint8
+        );
+      } catch (err) {
+        return false;
+      }
+    }
+
+    /* Time Freshness Check */
+    function isFresh(issuedAtISO) {
+      try {
+        const issued = Date.parse(issuedAtISO);
+        if (isNaN(issued)) return false;
+        const now = Date.now();
+        const skew = Math.abs(now - issued);
+        return skew <= MAX_SKEW_MS;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    /* Structural Gate (Whitelist Enforcement) */
+    function structuralGate(packet) {
+      try {
+        // Tier 1 markers present?
+        const hasTier1Fields = packet.nav?.bias || packet.nav?.stability;
+        
+        // If Tier 1 fields present, require signature
+        if (hasTier1Fields && !packet.meta?.signature) {
+          return false;
+        }
+
+        // If signature present, validate tier
+        if (packet.meta?.signature && packet.meta?.tier !== 1) {
+          return false;
+        }
+
+        // Required fields for Tier 1
+        if (packet.meta?.tier === 1) {
+          if (!packet.nav?.regime) return false;
+          if (!packet.nav?.risk) return false;
+          if (!packet.nav?.confidence) return false;
+          if (!packet.nav?.bias) return false;
+          if (!packet.nav?.stability) return false;
+          if (!packet.meta?.issued_at) return false;
+          if (!packet.meta?.signature) return false;
+        }
+
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    /* Build Canonical Payload (Strict Order) */
+    function buildCanonicalPayload(packet) {
+      try {
+        const payload = 
+          String(packet.meta.tier) +
+          packet.nav.regime +
+          packet.nav.risk +
+          packet.nav.confidence +
+          packet.nav.bias +
+          packet.nav.stability +
+          packet.meta.issued_at;
+        
+        const encoder = new TextEncoder();
+        return encoder.encode(payload);
+      } catch (err) {
+        throw new Error("Payload build failed");
+      }
+    }
+
+    /* Tier 1 Validation Pipeline (Async) */
+    async function validateTier1(packet) {
+      try {
+        // Step A: Structural gate
+        if (!structuralGate(packet)) {
+          return false;
+        }
+
+        // Step B: Freshness check
+        if (!isFresh(packet.meta.issued_at)) {
+          return false;
+        }
+
+        // Step C: Build canonical payload
+        const payloadBytes = buildCanonicalPayload(packet);
+
+        // Step D: Decode signature
+        const signatureBytes = decodeBase64ToUint8(packet.meta.signature);
+
+        // Step E: Import public key (cached in real impl, but stateless per spec)
+        const publicKey = await importPublicKey(PUB_KEY_BASE64);
+
+        // Step F: Verify signature
+        const valid = await verifySignature(payloadBytes, signatureBytes, publicKey);
+
+        return valid;
+
+      } catch (err) {
+        // Silent fail
+        return false;
+      }
+    }
+
+    /* ---- PHASE 15.1: STATE SANITIZATION (Hard Reset) ---- */
+
+    /* ---- PHASE 15.1: STATE SANITIZATION (Hard Reset) ---- */
+
+    /* Global state holder (for potential future Tier 1 state) */
+    let currentPacket = null;
+
+    /* Sanitize to Tier 0 (Idempotent Hard Reset) */
+    function sanitizeToTier0() {
+      try {
+        // Physically remove Tier 1 artifacts
+        currentPacket = null;
+        
+        // Clear any potential Tier 1 state from memory
+        if (window.tier1State) {
+          delete window.tier1State;
+        }
+
+        // Reset to static Tier 0 packet
+        currentPacket = STATIC_NAV_PACKET;
+
+      } catch (err) {
+        // Fail-safe: force reset
+        currentPacket = null;
+      }
+    }
+
+    /* ---- PHASE 15.1: PACKET INGESTION (Validation Integration) ---- */
+
+    /* Update State with Validation Gate */
+    async function updateState(packet) {
+      try {
+        // Detect Tier 1 attempt
+        const isTier1Attempt = packet?.meta?.tier === 1 || 
+                               packet?.nav?.bias || 
+                               packet?.nav?.stability;
+
+        if (isTier1Attempt) {
+          // Validate Tier 1
+          const valid = await validateTier1(packet);
+          
+          if (valid) {
+            // Valid Tier 1 packet received
+            // DO NOTHING VISUAL (Tier 1 UI not enabled yet)
+            // Store for future use (Phase 15.2+)
+            currentPacket = packet;
+            // No render changes
+            return;
+          } else {
+            // Invalid Tier 1 → fail to Tier 0
+            sanitizeToTier0();
+            renderNAV(STATIC_NAV_PACKET);
+            return;
+          }
+        }
+
+        // Tier 0 path (normal)
+        currentPacket = packet || STATIC_NAV_PACKET;
+        renderNAV(currentPacket);
+
+      } catch (err) {
+        // Any error → fail-closed to Tier 0
+        sanitizeToTier0();
+        triggerFailSafe();
+      }
+    }
 
     /* ---- ARCHITECTURE: SANITIZE FOR TIER 0 (Deep Clone + Strip) ---- */
     function sanitizeForTier0(state) {
