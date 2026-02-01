@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>MNS Terminal</title>
+  <title>MNS Terminal — mns.com.ge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     html, body {
       margin: 0;
@@ -11,358 +12,256 @@
       color: #00ff66;
       font-family: "Courier New", monospace;
       height: 100%;
+      overflow: hidden;
     }
     #terminal {
       box-sizing: border-box;
-      padding: 16px;
+      padding: 20px;
       height: 100%;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
       white-space: pre;
     }
     #nav {
-      position: sticky;
-      top: 0;
-      background: #000;
-      border-bottom: 1px solid #00aa44;
-      padding-bottom: 6px;
-      margin-bottom: 10px;
       font-weight: bold;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
     }
-    .log {
-      line-height: 1.3;
+    #status {
+      opacity: 0.7;
+      margin-bottom: 20px;
+      letter-spacing: 0.5px;
     }
   </style>
 </head>
 <body>
   <div id="terminal">
     <div id="nav"></div>
-    <div id="logs"></div>
+    <div id="status"></div>
   </div>
 
   <script>
     /* =========================
-       Phase 11.6 — Tier 0 Public Implementation
+       Phase 12B — Tier 0 Observability & Public Release
+       Market Navigation System (MNS)
+       Target: mns.com.ge
+       Mode: UI-only, deterministic, audit-grade
        ========================= */
 
-    /* ---- Deterministic PRNG ---- */
-    function seededRandom(seed) {
-      let x = Math.sin(seed++) * 10000;
-      return x - Math.floor(x);
+    "use strict";
+
+    /* ---- TIER 0 CANONICAL NAV STATE (READ-ONLY INTERFACE) ---- */
+    const NAV_STATE = Object.seal({
+      regime: "COMPRESSION",
+      risk: "NORMAL",
+      confidence: "MED",
+      status: "LIVE"
+    });
+
+    /* ---- DETERMINISTIC PRNG (Seeded) ---- */
+    let SEED = 42;
+    function seededRandom() {
+      SEED = (SEED * 9301 + 49297) % 233280;
+      return SEED / 233280;
     }
 
-    let tick = 1;
+    /* ---- REGIME CATALOG (IMMUTABLE) ---- */
+    const REGIMES = Object.freeze([
+      "ACCUMULATION",
+      "EXPANSION",
+      "DISLOCATION",
+      "EXHAUSTION",
+      "COMPRESSION"
+    ]);
 
-    /* ---- Phase 11.6 Access Context (TIER 0 ONLY) ---- */
-    const AccessContext = {
-      current_view_tier: "TIER_0",
-      last_valid_tier: "TIER_0"
-    };
+    /* ---- RISK LEVELS (IMMUTABLE) ---- */
+    const RISK_LEVELS = Object.freeze([
+      "LOW",
+      "NORMAL",
+      "HIGH"
+    ]);
 
-    /* ---- Phase 11.4 NAV State Machine (CANONICAL) ---- */
-    const NAV_STATE = {
-      regime: "ACCUMULATION",
-      bias: "NEUTRAL",
-      confidence: 0.5,
-      sinceTick: 0
-    };
+    /* ---- CONFIDENCE LEVELS (IMMUTABLE) ---- */
+    const CONFIDENCE_LEVELS = Object.freeze([
+      "LOW",
+      "MED",
+      "HIGH"
+    ]);
 
-    /* ---- Phase 11.3 Regime Taxonomy (IMMUTABLE) ---- */
-    const REGIMES = {
-      ACCUMULATION: "ACCUMULATION",
-      EXPANSION: "EXPANSION",
-      DISLOCATION: "DISLOCATION",
-      EXHAUSTION: "EXHAUSTION",
-      COMPRESSION: "COMPRESSION"
-    };
-
-    const BIAS = {
-      BULLISH: "BULLISH",
-      BEARISH: "BEARISH",
-      NEUTRAL: "NEUTRAL"
-    };
-
-    /* ---- Phase 11.3 Transition Rules (IMMUTABLE) ---- */
-    const FORBIDDEN_TRANSITIONS = {
-      ACCUMULATION: [REGIMES.DISLOCATION, REGIMES.EXHAUSTION],
-      EXPANSION: [REGIMES.ACCUMULATION, REGIMES.COMPRESSION],
-      DISLOCATION: [REGIMES.ACCUMULATION, REGIMES.EXPANSION],
-      EXHAUSTION: [REGIMES.ACCUMULATION, REGIMES.EXPANSION],
-      COMPRESSION: [REGIMES.EXPANSION, REGIMES.DISLOCATION]
-    };
-
-    const MIN_HOLD_TIME = 3;
-
-    /* ---- Global State ---- */
-    const TunnelState = {
-      phase: "11.6",
-      status: "STABLE",
-      location: "TBILISI_HUB_01",
-      depth: 42,
-      nodes: [
-        { id: "TBILISI_01", load: 0.52, status: "STABLE" }
-      ]
-    };
-
-    const MAX_LINES = 120;
-    const logsEl = document.getElementById("logs");
+    /* ---- DOM REFERENCES ---- */
     const navEl = document.getElementById("nav");
+    const statusEl = document.getElementById("status");
 
-    /* ---- Phase 11.6 Sanitization Logic (MANDATORY) ---- */
-    function sanitizeToTier0() {
-      const terminal = document.getElementById("terminal");
-      if (terminal) {
-        logsEl.innerHTML = "";
-        navEl.innerHTML = "";
-      }
-
-      NAV_STATE.regime = "UNKNOWN";
-      NAV_STATE.bias = "NEUTRAL";
-      NAV_STATE.confidence = 0.3;
-      NAV_STATE.sinceTick = 0;
-
-      TunnelState.depth = 50;
-      TunnelState.nodes = [
-        { id: "NODE_01", load: 0.5, status: "NOMINAL" }
-      ];
-
-      AccessContext.current_view_tier = "TIER_0";
-      AccessContext.last_valid_tier = "TIER_0";
-    }
-
-    /* ---- Phase 11.6 Structure Gate (Silent Handshake Stub) ---- */
-    function evaluateIncomingPacket(packet) {
-      const tier0Fields = ["regime", "confidence"];
-      const packetKeys = Object.keys(packet);
-
-      for (const key of packetKeys) {
-        if (key === "bias" || key === "sinceTick" || key === "drivers" || key === "blockers") {
-          sanitizeToTier0();
-          return null;
-        }
-      }
-
-      return packet;
-    }
-
-    /* ---- Phase 11.6 Tier 0 Packet Sanitizer ---- */
-    function sanitizePacketForTier0(rawPacket) {
-      return {
-        regime: rawPacket.regime || "UNKNOWN",
-        confidence: rawPacket.confidence !== undefined ? rawPacket.confidence : 0.3
-      };
-    }
-
-    /* ---- Input Snapshot Generation (Deterministic Emulator) ---- */
-    function generateInputSnapshot() {
-      const r1 = seededRandom(tick * 7);
-      const r2 = seededRandom(tick * 13);
-      const r3 = seededRandom(tick * 19);
-      const r4 = seededRandom(tick * 23);
-      const r5 = seededRandom(tick * 29);
-
-      return {
-        volatility_index: r1,
-        liquidity_gap_score: r2,
-        momentum_score: (r3 - 0.5) * 2,
-        compression_score: r4,
-        exhaustion_score: r5,
-        timestamp: tick
-      };
-    }
-
-    /* ---- Phase 11.4 Transition Evaluation Pipeline (STRICT ORDER) ---- */
-    function evaluateTransition(snapshot) {
-      const currentRegime = NAV_STATE.regime;
-      const currentBias = NAV_STATE.bias;
-
-      // Step a) Shock detection
-      const isShock = snapshot.volatility_index > 0.90;
-      
-      // Step b) Regime candidate detection
-      let candidateRegime = currentRegime;
-      let candidateBias = currentBias;
-      let candidateConfidence = NAV_STATE.confidence;
-
-      if (isShock) {
-        candidateRegime = REGIMES.DISLOCATION;
-        candidateBias = snapshot.momentum_score > 0 ? BIAS.BEARISH : BIAS.BULLISH;
-        candidateConfidence = 0.8;
-      } else {
-        // Normal regime detection logic
-        if (snapshot.compression_score > 0.75) {
-          candidateRegime = REGIMES.COMPRESSION;
-          candidateConfidence = 0.7;
-        } else if (snapshot.exhaustion_score > 0.80) {
-          candidateRegime = REGIMES.EXHAUSTION;
-          candidateConfidence = 0.75;
-        } else if (snapshot.momentum_score > 0.6) {
-          candidateRegime = REGIMES.EXPANSION;
-          candidateBias = BIAS.BULLISH;
-          candidateConfidence = 0.65;
-        } else if (snapshot.momentum_score < -0.6) {
-          candidateRegime = REGIMES.EXPANSION;
-          candidateBias = BIAS.BEARISH;
-          candidateConfidence = 0.65;
-        } else if (snapshot.liquidity_gap_score < 0.3) {
-          candidateRegime = REGIMES.ACCUMULATION;
-          candidateBias = BIAS.NEUTRAL;
-          candidateConfidence = 0.6;
-        } else {
-          // No clear signal, drift confidence down
-          candidateConfidence = Math.max(0.3, NAV_STATE.confidence - 0.05);
-        }
-      }
-
-      // If no regime change detected, return early
-      if (candidateRegime === currentRegime) {
-        // Update confidence only
-        NAV_STATE.confidence = candidateConfidence;
-        NAV_STATE.sinceTick++;
-        return;
-      }
-
-      // Step c) Forbidden transition check
-      const forbidden = FORBIDDEN_TRANSITIONS[currentRegime] || [];
-      if (forbidden.includes(candidateRegime)) {
-        // REJECT: forbidden transition
-        NAV_STATE.sinceTick++;
-        return;
-      }
-
-      // Step d) Min Hold Time check
-      if (NAV_STATE.sinceTick < MIN_HOLD_TIME) {
-        // REJECT: min hold time not satisfied
-        NAV_STATE.sinceTick++;
-        return;
-      }
-
-      // Step e) Bias drift constraint check
-      if (candidateBias !== currentBias) {
-        // Bias change requires NEUTRAL intermediate OR shock override
-        if (currentBias !== BIAS.NEUTRAL && candidateBias !== BIAS.NEUTRAL && !isShock) {
-          // REJECT: cannot flip bias directly without NEUTRAL
-          NAV_STATE.sinceTick++;
-          return;
-        }
-      }
-
-      // Step f) State commit
-      NAV_STATE.regime = candidateRegime;
-      NAV_STATE.bias = candidateBias;
-      NAV_STATE.confidence = candidateConfidence;
-      NAV_STATE.sinceTick = 0;
-    }
-
-    /* ---- State Update Logic ---- */
+    /* ---- ARCHITECTURE: UPDATE STATE (Deterministic Mock Engine) ---- */
     function updateState() {
-      const r = seededRandom(tick);
-
-      // Smooth bounded drift
-      TunnelState.depth = Math.min(
-        100,
-        Math.max(0, TunnelState.depth + (r - 0.5) * 2)
-      );
-
-      TunnelState.nodes.forEach(n => {
-        n.load = Math.min(1, Math.max(0, n.load + (r - 0.5) * 0.05));
-      });
-
-      // Generate input snapshot from emulator
-      const snapshot = generateInputSnapshot();
-
-      // Evaluate NAV state transition
-      evaluateTransition(snapshot);
-    }
-
-    /* ---- Render Logic (Phase 11.6 Hardened) ---- */
-    function renderNAV(safePacket) {
       try {
-        const confidenceLabel =
-          safePacket.confidence >= 0.7 ? "HIGH" :
-          safePacket.confidence >= 0.4 ? "MEDIUM" :
-          "LOW";
+        const r1 = seededRandom();
+        const r2 = seededRandom();
+        const r3 = seededRandom();
 
-        navEl.textContent =
-          `[NAV] REGIME: ${safePacket.regime}` +
-          ` | CONFIDENCE: ${confidenceLabel}`;
-      } catch (e) {
-        sanitizeToTier0();
-        navEl.textContent = `[NAV] REGIME: UNKNOWN | CONFIDENCE: LOW`;
-      }
-    }
-
-    function renderTelemetry() {
-      try {
-        const barLen = 20;
-        const filled = Math.round((TunnelState.depth / 100) * barLen);
-        const bar =
-          "█".repeat(filled) + "░".repeat(barLen - filled);
-
-        const line =
-          `[TELEMETRY] depth=[${bar}] ${TunnelState.depth.toFixed(0)}%` +
-          ` | node:${TunnelState.nodes[0].id}` +
-          ` load:${TunnelState.nodes[0].load.toFixed(2)}`;
-
-        const div = document.createElement("div");
-        div.className = "log";
-        div.textContent = line;
-
-        logsEl.appendChild(div);
-
-        while (logsEl.children.length > MAX_LINES) {
-          logsEl.removeChild(logsEl.firstChild);
+        // Deterministic regime rotation
+        if (r1 < 0.1) {
+          const idx = Math.floor(r2 * REGIMES.length);
+          NAV_STATE.regime = REGIMES[idx];
         }
 
-        logsEl.parentElement.scrollTop =
-          logsEl.parentElement.scrollHeight;
-      } catch (e) {
-        sanitizeToTier0();
+        // Deterministic risk assignment
+        if (r2 < 0.15) {
+          const idx = Math.floor(r3 * RISK_LEVELS.length);
+          NAV_STATE.risk = RISK_LEVELS[idx];
+        }
+
+        // Deterministic confidence drift
+        if (r3 < 0.2) {
+          const idx = Math.floor(r1 * CONFIDENCE_LEVELS.length);
+          NAV_STATE.confidence = CONFIDENCE_LEVELS[idx];
+        }
+
+        // Status is always LIVE unless fail-safe triggered
+        NAV_STATE.status = "LIVE";
+
+      } catch (err) {
+        // Trigger fail-safe on any error
+        triggerFailSafe();
       }
     }
 
-    function renderTick() {
+    /* ---- ARCHITECTURE: SANITIZE FOR TIER 0 (Deep Clone + Strip) ---- */
+    function sanitizeForTier0(state) {
       try {
-        const rawPacket = {
-          regime: NAV_STATE.regime,
-          confidence: NAV_STATE.confidence,
-          bias: NAV_STATE.bias,
-          sinceTick: NAV_STATE.sinceTick
+        // Deep clone to prevent mutation leaks
+        const sanitized = {
+          regime: state.regime,
+          risk: state.risk,
+          confidence: state.confidence,
+          status: state.status
         };
 
-        const validatedPacket = evaluateIncomingPacket(rawPacket);
-        if (!validatedPacket) {
-          return;
+        // Validate structure
+        if (!REGIMES.includes(sanitized.regime)) {
+          throw new Error("Invalid regime");
+        }
+        if (!RISK_LEVELS.includes(sanitized.risk)) {
+          throw new Error("Invalid risk");
+        }
+        if (!CONFIDENCE_LEVELS.includes(sanitized.confidence)) {
+          throw new Error("Invalid confidence");
+        }
+        if (sanitized.status !== "LIVE" && sanitized.status !== "UNKNOWN") {
+          throw new Error("Invalid status");
         }
 
-        const safePacket = sanitizePacketForTier0(validatedPacket);
-        renderNAV(safePacket);
-        renderTelemetry();
-      } catch (e) {
-        sanitizeToTier0();
-        renderNAV({ regime: "UNKNOWN", confidence: 0.3 });
+        return sanitized;
+
+      } catch (err) {
+        // Return fail-safe state
+        return {
+          regime: "UNKNOWN",
+          risk: "NORMAL",
+          confidence: "LOW",
+          status: "UNKNOWN"
+        };
       }
     }
 
-    /* ---- Render Loop ---- */
-    let renderInterval = null;
+    /* ---- ARCHITECTURE: RENDER NAV (DOM Writes Only) ---- */
+    function renderNAV(state) {
+      try {
+        const safeState = sanitizeForTier0(state);
 
-    function startRenderLoop() {
-      renderInterval = setInterval(() => {
-        tick++;
-        updateState();
-        renderTick();
-      }, 900);
+        const navLine =
+          `[NAV] REGIME: ${safeState.regime}` +
+          ` | RISK: ${safeState.risk}` +
+          ` | CONFIDENCE: ${safeState.confidence}` +
+          ` | STATUS: ${safeState.status}`;
+
+        navEl.textContent = navLine;
+
+      } catch (err) {
+        // Fail-safe render
+        navEl.textContent = "[NAV] STATE: UNKNOWN";
+      }
     }
 
-    /* ---- Boot Sequence (Phase 11.6 Safe Default) ---- */
+    /* ---- ARCHITECTURE: RENDER STATUS (DOM Writes Only) ---- */
+    function renderStatus() {
+      try {
+        const statusLine =
+          `[STATUS] SYSTEM: LIVE` +
+          ` | MODE: TIER_0` +
+          ` | STREAM: PRESENT_STATE`;
+
+        statusEl.textContent = statusLine;
+
+      } catch (err) {
+        // Fail-safe render
+        statusEl.textContent = "[STATUS] SYSTEM: SAFE_MODE | MODE: TIER_0";
+      }
+    }
+
+    /* ---- FAIL-SAFE HANDLER ---- */
+    function triggerFailSafe() {
+      try {
+        // Clear all output
+        navEl.textContent = "";
+        statusEl.textContent = "";
+
+        // Render fail-safe state
+        navEl.textContent = "[NAV] STATE: UNKNOWN";
+        statusEl.textContent = "[STATUS] SYSTEM: SAFE_MODE | MODE: TIER_0";
+
+        // Reset NAV_STATE to safe defaults
+        NAV_STATE.regime = "COMPRESSION";
+        NAV_STATE.risk = "NORMAL";
+        NAV_STATE.confidence = "MED";
+        NAV_STATE.status = "UNKNOWN";
+
+      } catch (err) {
+        // Ultimate fail-safe: blank screen
+        document.getElementById("terminal").innerHTML = "";
+      }
+    }
+
+    /* ---- MAIN TICK CYCLE (Deterministic Interval) ---- */
+    const TICK_INTERVAL = 3000; // 3 seconds
+    let tickCount = 0;
+
+    function tick() {
+      try {
+        tickCount++;
+
+        // Update state
+        updateState();
+
+        // Render NAV
+        renderNAV(NAV_STATE);
+
+        // Render status heartbeat every 5 ticks
+        if (tickCount % 5 === 0) {
+          renderStatus();
+        }
+
+      } catch (err) {
+        triggerFailSafe();
+      }
+    }
+
+    /* ---- BOOT SEQUENCE ---- */
     (function init() {
-      sanitizeToTier0();
-      renderNAV({ regime: "UNKNOWN", confidence: 0.3 });
-      
-      setTimeout(() => {
-        startRenderLoop();
-      }, 100);
+      try {
+        // Initial render
+        renderNAV(NAV_STATE);
+        renderStatus();
+
+        // Start deterministic tick loop
+        setInterval(tick, TICK_INTERVAL);
+
+      } catch (err) {
+        triggerFailSafe();
+      }
     })();
+
   </script>
 </body>
 </html>
