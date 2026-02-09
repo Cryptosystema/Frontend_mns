@@ -24,6 +24,16 @@ if (Object.keys(TRUSTED_KEYS).length > 2) {
 }
 
 /* ============================================
+   BACKEND CONFIGURATION
+   ============================================ */
+
+/**
+ * Backend base URL
+ * Phase 22.5: Railway production deployment
+ */
+const BACKEND_BASE_URL = "https://mns-core-production.up.railway.app";
+
+/* ============================================
    STATIC NAV PACKET (TIER 0)
    ============================================ */
 
@@ -565,8 +575,8 @@ const handlers: DeliveryControllerHandlers = {
 
 const controller = createDeliveryController(
   {
-    sseEndpoint: "/stream",
-    restEndpoint: "/api/v1/latest",
+    sseEndpoint: `${BACKEND_BASE_URL}/stream`,
+    restEndpoint: `${BACKEND_BASE_URL}/api/v1/latest`,
     restPollingInterval: 2000,
     sseRecoveryInterval: 30000
   },
