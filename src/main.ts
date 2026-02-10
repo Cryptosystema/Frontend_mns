@@ -29,9 +29,9 @@ if (Object.keys(TRUSTED_KEYS).length > 2) {
 
 /**
  * Backend base URL
- * Phase 22.5: Railway production deployment
+ * Phase 22.5: Fly.dev production deployment
  */
-const BACKEND_BASE_URL = "https://mns-core-production.up.railway.app";
+const BACKEND_BASE_URL = "https://mns-core-minimal-test.fly.dev";
 
 /* ============================================
    STATIC NAV PACKET (TIER 0)
