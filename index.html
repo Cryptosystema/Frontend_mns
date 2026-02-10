@@ -29,6 +29,75 @@
       margin-bottom: 8px;
       letter-spacing: 0.5px;
     }
+
+    /* Phase 23 - Live BTC Price */
+    #btc-price {
+      font-size: 1.4em;
+      font-weight: bold;
+      margin-bottom: 12px;
+      padding: 10px;
+      background: #001a00;
+      border: 1px solid #00ff66;
+      border-radius: 4px;
+      letter-spacing: 1px;
+    }
+
+    /* Phase 23 - Market Regimes */
+    #regimes {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .regime-badge {
+      padding: 6px 12px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      border: 1px solid currentColor;
+    }
+    .regime-low, .regime-normal, .regime-stable { 
+      color: #00ff66; 
+      background: #001a00;
+    }
+    .regime-moderate, .regime-consolidating { 
+      color: #ffff00; 
+      background: #1a1a00;
+    }
+    .regime-high, .regime-volatile, .regime-elevated { 
+      color: #ff6600; 
+      background: #1a0a00;
+    }
+    .regime-crisis, .regime-extreme { 
+      color: #ff0000; 
+      background: #1a0000;
+    }
+
+    /* Phase 23 - Confidence Indicator */
+    #confidence {
+      margin-bottom: 12px;
+    }
+    .confidence-label {
+      font-size: 0.9em;
+      margin-bottom: 4px;
+      opacity: 0.8;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #003300;
+      border: 1px solid #00ff66;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #00ff66;
+      transition: width 0.5s ease;
+    }
+
     #nav {
       font-weight: bold;
       margin-bottom: 8px;
@@ -36,10 +105,20 @@
     }
     #status {
       opacity: 0.7;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       letter-spacing: 0.5px;
       animation: heartbeat 4s ease-in-out infinite;
     }
+
+    /* Phase 23 - Last Update Timestamp */
+    #last-update {
+      font-size: 0.8em;
+      opacity: 0.5;
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid #003300;
+    }
+
     @keyframes heartbeat {
       0%, 100% { opacity: 0.7; }
       50% { opacity: 0.85; }
@@ -49,8 +128,30 @@
 <body>
   <div id="terminal">
     <div id="delivery-mode">Status: INITIALIZING</div>
+    
+    <!-- Phase 23.4: Live BTC Price -->
+    <div id="btc-price">BTC: Loading...</div>
+    
+    <!-- Phase 23.4: Market Regimes -->
+    <div id="regimes">
+      <div class="regime-badge regime-moderate">VOL: ---</div>
+      <div class="regime-badge regime-moderate">TREND: ---</div>
+      <div class="regime-badge regime-moderate">STRESS: ---</div>
+    </div>
+    
+    <!-- Phase 23.4: Confidence Indicator -->
+    <div id="confidence">
+      <div class="confidence-label">FORECAST CONFIDENCE: 0%</div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+    
     <div id="nav"></div>
     <div id="status"></div>
+    
+    <!-- Phase 23.4: Last Update Timestamp -->
+    <div id="last-update">Last updated: Never</div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

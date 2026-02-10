@@ -116,6 +116,59 @@ const deliveryModeEl = document.getElementById("delivery-mode") as HTMLDivElemen
 const navEl =document.getElementById("nav") as HTMLDivElement;
 const statusEl = document.getElementById("status") as HTMLDivElement;
 
+/* Phase 23.4: New DOM references */
+const btcPriceEl = document.getElementById("btc-price") as HTMLDivElement;
+const regimesEl = document.getElementById("regimes") as HTMLDivElement;
+const confidenceEl = document.getElementById("confidence") as HTMLDivElement;
+const lastUpdateEl = document.getElementById("last-update") as HTMLDivElement;
+
+/* ============================================
+   PHASE 23 DATA STRUCTURES
+   ============================================ */
+
+interface BTCPriceData {
+  symbol: string;
+  price: number;
+  timestamp: number;
+}
+
+interface RegimesData {
+  volatility_regime: string;
+  trend_regime: string;
+  stress_regime: string;
+  liquidity_regime: string;
+  timestamp: string;
+}
+
+interface ForecastData {
+  tier0: {
+    symbol: string;
+    horizon: string;
+    p10: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p90: number;
+    confidence: number;
+  };
+  tier1: {
+    bias: string;
+    stability: string;
+  };
+  tier2: {
+    liquidity_state: string;
+    drivers: string[];
+    blockers: string[];
+  };
+  timestamp: number;
+}
+
+/* Phase 23.4: State */
+let cachedPrice: BTCPriceData | null = null;
+let cachedRegimes: RegimesData | null = null;
+let cachedForecast: ForecastData | null = null;
+let lastFetchTime: number = 0;
+
 /* ============================================
    CRYPTOGRAPHIC VALIDATION
    ============================================ */
@@ -556,6 +609,198 @@ function updateDeliveryModeIndicator(mode: DeliveryMode): void {
 }
 
 /* ============================================
+   PHASE 23.4: FETCH FUNCTIONS
+   ============================================ */
+
+async function fetchBTCPrice(): Promise<BTCPriceData | null> {
+  try {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/v1/price`);
+    if (!response.ok) throw new Error(`Price fetch failed: ${response.status}`);
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('[Phase23] Price fetch error:', err);
+    return null;
+  }
+}
+
+async function fetchRegimes(): Promise<RegimesData | null> {
+  try {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/v1/regimes`);
+    if (!response.ok) throw new Error(`Regimes fetch failed: ${response.status}`);
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('[Phase23] Regimes fetch error:', err);
+    return null;
+  }
+}
+
+async function fetchForecast(): Promise<ForecastData | null> {
+  try {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/v1/latest`);
+    if (!response.ok) throw new Error(`Forecast fetch failed: ${response.status}`);
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('[Phase23] Forecast fetch error:', err);
+    return null;
+  }
+}
+
+/* ============================================
+   PHASE 23.4: RENDER FUNCTIONS
+   ============================================ */
+
+function renderBTCPrice(data: BTCPriceData | null): void {
+  if (!data) {
+    btcPriceEl.textContent = "BTC: Unavailable";
+    return;
+  }
+  
+  const formatted = data.price.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  
+  btcPriceEl.textContent = `BTC: $${formatted}`;
+}
+
+function getRegimeClass(regime: string, type: string): string {
+  const normalized = regime.toLowerCase();
+  
+  if (type === 'volatility') {
+    if (normalized === 'low') return 'regime-low';
+    if (normalized === 'high') return 'regime-high';
+    return 'regime-moderate';
+  }
+  
+  if (type === 'trend') {
+    if (normalized === 'bullish') return 'regime-normal';
+    if (normalized === 'bearish') return 'regime-high';
+    return 'regime-moderate';
+  }
+  
+  if (type === 'stress') {
+    if (normalized === 'normal') return 'regime-normal';
+    if (normalized === 'crisis') return 'regime-crisis';
+    return 'regime-high';
+  }
+  
+  return 'regime-moderate';
+}
+
+function renderRegimes(data: RegimesData | null): void {
+  if (!data) {
+    regimesEl.innerHTML = '<div class=\"regime-badge regime-moderate\">REGIMES: Unavailable</div>';
+    return;
+  }
+  
+  const volClass = getRegimeClass(data.volatility_regime, 'volatility');
+  const trendClass = getRegimeClass(data.trend_regime, 'trend');
+  const stressClass = getRegimeClass(data.stress_regime, 'stress');
+  
+  regimesEl.innerHTML = `
+    <div class=\"regime-badge ${volClass}\">VOL: ${data.volatility_regime}</div>
+    <div class=\"regime-badge ${trendClass}\">TREND: ${data.trend_regime}</div>
+    <div class=\"regime-badge ${stressClass}\">STRESS: ${data.stress_regime}</div>
+  `;
+}
+
+function renderConfidence(data: ForecastData | null): void {
+  if (!data) {
+    const label = confidenceEl.querySelector('.confidence-label');
+    const fill = confidenceEl.querySelector('.progress-fill') as HTMLDivElement;
+    if (label) label.textContent = 'FORECAST CONFIDENCE: N/A';
+    if (fill) fill.style.width = '0%';
+    return;
+  }
+  
+  const confidence = data.tier0.confidence;
+  const percent = Math.round(confidence * 100);
+  
+  const label = confidenceEl.querySelector('.confidence-label');
+  const fill = confidenceEl.querySelector('.progress-fill') as HTMLDivElement;
+  
+  if (label) label.textContent = `FORECAST CONFIDENCE: ${percent}%`;
+  if (fill) fill.style.width = `${percent}%`;
+}
+
+function getTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  
+  if (seconds < 10) return 'Just now';
+  if (seconds < 60) return `${seconds} seconds ago`;
+  
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  
+  const hours = Math.floor(minutes / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+}
+
+function renderLastUpdate(): void {
+  if (lastFetchTime === 0) {
+    lastUpdateEl.textContent = 'Last updated: Never';
+    return;
+  }
+  
+  lastUpdateEl.textContent = `Last updated: ${getTimeAgo(lastFetchTime)}`;
+}
+
+/* ============================================
+   PHASE 23.4: UPDATE CYCLE
+   ============================================ */
+
+async function updatePhase23Data(): Promise<void> {
+  try {
+    // Fetch all data in parallel
+    const [priceData, regimesData, forecastData] = await Promise.all([
+      fetchBTCPrice(),
+      fetchRegimes(),
+      fetchForecast()
+    ]);
+    
+    // Cache results
+    if (priceData) cachedPrice = priceData;
+    if (regimesData) cachedRegimes = regimesData;
+    if (forecastData) cachedForecast = forecastData;
+    
+    // Update timestamp
+    lastFetchTime = Date.now();
+    
+    // Render all UI updates
+    renderBTCPrice(cachedPrice);
+    renderRegimes(cachedRegimes);
+    renderConfidence(cachedForecast);
+    renderLastUpdate();
+    
+  } catch (err) {
+    console.error('[Phase23] Update cycle error:', err);
+  }
+}
+
+/* Auto-refresh Phase 23 data every 5 seconds */
+let phase23Interval: number | null = null;
+
+function startPhase23Updates(): void {
+  // Initial fetch
+  updatePhase23Data();
+  
+  // Auto-refresh every 5 seconds
+  phase23Interval = window.setInterval(() => {
+    updatePhase23Data();
+  }, 5000);
+}
+
+function stopPhase23Updates(): void {
+  if (phase23Interval !== null) {
+    clearInterval(phase23Interval);
+    phase23Interval = null;
+  }
+}
+
+/* ============================================
    PHASE 22.4: DELIVERY CONTROLLER WIRING
    ============================================ */
 
@@ -593,11 +838,15 @@ function init(): void {
     renderNAV(0, STATIC_NAV_PACKET);
     renderStatus();
     
+    // Phase 23.4: Start enhanced data updates
+    startPhase23Updates();
+    
     // Start delivery controller
     controller.start();
     
     // Shutdown on page unload
     window.addEventListener('beforeunload', () => {
+      stopPhase23Updates();
       controller.stop();
     });
     
