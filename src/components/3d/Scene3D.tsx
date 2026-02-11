@@ -6,7 +6,6 @@ import { CameraControls } from './CameraControls'
 import { Lighting } from './Lighting'
 import { ProbabilitySurface } from './ProbabilitySurface'
 import { ParticleSystem } from './ParticleSystem'
-import { PostProcessing } from './PostProcessing'
 import { AdaptiveTunnel } from './AdaptiveTunnel'
 import { ShareControlsUI } from './ShareControls'
 import { Scene3DProps } from '@/types/3d'
@@ -77,12 +76,6 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
           <ParticleSystem 
             count={quality.particleCount}
             regime={regime}
-          />
-
-          {/* Post-processing effects */}
-          <PostProcessing 
-            enabled={quality.bloomEnabled}
-            bloomIntensity={0.5}
           />
           
           {/* Grid helper for development */}
