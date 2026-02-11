@@ -1,6 +1,7 @@
 /**
  * MNS Terminal — Main Entry Point
  * Phase 25: Professional UI/UX
+ * Phase 28: 3D Visualization
  * 
  * Purpose: Bootstrap delivery infrastructure and wire to UI
  */
@@ -24,6 +25,14 @@ import {
   createConfidenceGauge,
   updateConfidenceGauge
 } from './ui/charts.js';
+
+/* ============================================
+   PHASE 28: 3D VISUALIZATION IMPORTS
+   ============================================ */
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { Scene3D } from './components/3d/index';
+
 
 /* ============================================
    CRYPTOGRAPHIC ANCHORS (IMMUTABLE)
@@ -1007,6 +1016,86 @@ const controller = createDeliveryController(
 );
 
 /* ============================================
+   PHASE 28: 3D VISUALIZATION INITIALIZATION
+   ============================================ */
+
+let scene3DRoot: ReactDOM.Root | null = null;
+
+/**
+ * Initialize 3D visualization if feature flag is enabled
+ * Uses React 19 createRoot API for concurrent rendering
+ */
+function initialize3DScene(): void {
+  try {
+    // Get container element
+    const container = document.getElementById('scene-3d-root');
+    const section = document.getElementById('scene-3d-section');
+    
+    if (!container || !section) {
+      console.warn('[Phase28] 3D container not found in DOM');
+      return;
+    }
+    
+    console.log('[Phase28] Initializing 3D visualization...');
+    
+    // Check if feature is enabled via env variable
+    const is3DEnabled = import.meta.env.VITE_ENABLE_3D === 'true';
+    
+    if (!is3DEnabled) {
+      console.log('[Phase28] 3D visualization disabled via VITE_ENABLE_3D flag');
+      return;
+    }
+    
+    // Show 3D section
+    section.style.display = 'block';
+    
+    // Create React root (React 19 API)
+    scene3DRoot = ReactDOM.createRoot(container);
+    
+    // Render Scene3D component
+    // Uses mock data by default, can pass real forecast data later
+    scene3DRoot.render(
+      React.createElement(Scene3D, {
+        data: undefined, // Use mock data for now
+        onInteraction: () => {
+          console.log('[Phase28] 3D scene interaction');
+        }
+      })
+    );
+    
+    console.log('[Phase28] 3D visualization initialized successfully');
+    
+  } catch (err) {
+    console.error('[Phase28] Failed to initialize 3D scene:', err);
+    // Non-critical error - app continues without 3D
+  }
+}
+
+/**
+ * Update 3D scene with new forecast data
+ * Can be called when cachedForecast updates
+ */
+function update3DScene(forecastData: any): void {
+  if (!scene3DRoot) return;
+  
+  try {
+    scene3DRoot.render(
+      React.createElement(Scene3D, {
+        data: forecastData,
+        onInteraction: () => {
+          console.log('[Phase28] 3D scene interaction');
+        }
+      })
+    );
+  } catch (err) {
+    console.error('[Phase28] Failed to update 3D scene:', err);
+  }
+}
+
+// Reserved for future use when integrating real forecast data
+void update3DScene;
+
+/* ============================================
    PHASE 25: BOOTSTRAP WITH LOADING STATE
    ============================================ */
 
@@ -1027,6 +1116,11 @@ function init(): void {
     setTimeout(() => {
       initializeCharts();
     }, 500);
+    
+    // Phase 28: Initialize 3D visualization
+    setTimeout(() => {
+      initialize3DScene();
+    }, 600);
     
     // Phase 25: Start enhanced data updates
     startPhase23Updates();
