@@ -161,6 +161,8 @@ export class SSEClient {
   private eventSource: EventSource | null = null;
   private state: SSEConnectionState = SSEConnectionState.DISCONNECTED;
   private lastMessageTime: number = 0;
+  private navUpdateHandler: ((event: MessageEvent) => void) | null = null;
+  private keepAliveHandler: ((event: MessageEvent) => void) | null = null;
   
   constructor(config: Partial<SSEClientConfig>, handlers: SSEEventHandlers) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -195,16 +197,22 @@ export class SSEClient {
     try {
       this.setState(SSEConnectionState.CONNECTING);
       this.logLifecycle(`Connecting to ${this.config.endpoint}`);
+      console.log("[SSE] Initializing connection to:", this.config.endpoint);
       
-      this.eventSource = new EventSource(this.config.endpoint);
+      this.eventSource = new EventSource(this.config.endpoint, {
+        withCredentials: false
+      });
       
       // Standard EventSource events
       this.eventSource.onopen = this.handleOpen.bind(this);
       this.eventSource.onerror = this.handleError.bind(this);
+      this.eventSource.onmessage = this.handleDefaultMessage.bind(this);
       
       // Custom event types (backend-specific)
-      this.eventSource.addEventListener("nav_update", this.handleNavUpdate.bind(this));
-      this.eventSource.addEventListener("keep_alive", this.handleKeepAlive.bind(this));
+      this.navUpdateHandler = this.handleNavUpdate.bind(this);
+      this.keepAliveHandler = this.handleKeepAlive.bind(this);
+      this.eventSource.addEventListener("nav_update", this.navUpdateHandler);
+      this.eventSource.addEventListener("keep_alive", this.keepAliveHandler);
       
     } catch (err) {
       this.logError("connect() failed", err);
@@ -232,6 +240,17 @@ export class SSEClient {
     
     try {
       this.logLifecycle("Disconnecting");
+
+      if (this.navUpdateHandler !== null) {
+        this.eventSource.removeEventListener("nav_update", this.navUpdateHandler);
+        this.navUpdateHandler = null;
+      }
+
+      if (this.keepAliveHandler !== null) {
+        this.eventSource.removeEventListener("keep_alive", this.keepAliveHandler);
+        this.keepAliveHandler = null;
+      }
+
       this.eventSource.close();
       this.eventSource = null;
       this.setState(SSEConnectionState.DISCONNECTED);
@@ -257,6 +276,7 @@ export class SSEClient {
   
   private handleOpen(): void {
     this.logLifecycle("Connection opened");
+    console.log("[SSE] ✅ Connection opened");
     this.setState(SSEConnectionState.CONNECTED);
     
     if (this.handlers.onOpen) {
@@ -264,8 +284,10 @@ export class SSEClient {
     }
   }
   
-  private handleError(_event: Event): void {
+  private handleError(event: Event): void {
     this.logLifecycle("Connection error");
+    console.error("[SSE] ❌ Error:", event);
+    console.error("[SSE] ReadyState:", this.eventSource?.readyState ?? -1);
     this.setState(SSEConnectionState.ERROR);
     
     if (this.handlers.onError) {
@@ -275,9 +297,15 @@ export class SSEClient {
     // Note: Browser EventSource will attempt auto-reconnection
     // We transition back to CONNECTING when reconnection starts
   }
+
+  private handleDefaultMessage(event: MessageEvent): void {
+    console.log("[SSE] 📨 Message received:", event.data);
+    this.handleNavUpdate(event);
+  }
   
   private handleNavUpdate(event: MessageEvent): void {
     try {
+      console.log("[SSE] 📨 Message received:", event.data);
       const now = Date.now();
       
       // Throttle check (prevent overwhelming state layer)
@@ -325,6 +353,7 @@ export class SSEClient {
   }
   
   private handleKeepAlive(_event: MessageEvent): void {
+    console.log("[SSE] 📨 keep_alive received");
     // Keep-alive ping from backend (no action required)
     if (this.handlers.onKeepAlive) {
       this.handlers.onKeepAlive();
