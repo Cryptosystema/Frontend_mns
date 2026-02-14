@@ -2,6 +2,7 @@
 // @ts-nocheck - Three.js JSX elements from React Three Fiber
 import { LightConfig } from '@/types/3d'
 import { getRegimeTheme, type RegimeType } from './config/regimePalette'
+import type { RegimeVisualState } from './engine/RegimeVisualEngine'
 
 const DEFAULT_LIGHTS: LightConfig = {
   ambient: {
@@ -23,16 +24,21 @@ const DEFAULT_LIGHTS: LightConfig = {
 interface LightingProps {
   config?: LightConfig
   regime?: RegimeType
+  visualState?: RegimeVisualState
 }
 
-export function Lighting({ config = DEFAULT_LIGHTS, regime = 'NORMAL' }: LightingProps) {
+export function Lighting({ config = DEFAULT_LIGHTS, regime = 'NORMAL', visualState }: LightingProps) {
   const theme = getRegimeTheme(regime)
+  
+  // Use visual state for intelligent lighting adjustments
+  const ambientIntensity = visualState?.ambientIntensity ?? config.ambient.intensity
+  const glowIntensity = visualState?.glowIntensity ?? 0.8
 
   return (
     <>
       <ambientLight
         color={config.ambient.color}
-        intensity={config.ambient.intensity}
+        intensity={ambientIntensity}
       />
 
       <directionalLight
@@ -50,21 +56,19 @@ export function Lighting({ config = DEFAULT_LIGHTS, regime = 'NORMAL' }: Lightin
 
       <directionalLight
         color={theme.glow}
-        intensity={0.8}
+        intensity={glowIntensity}
         position={[0, 5, -15]}
       />
 
       {config.point && (
         <pointLight
           color={theme.glow}
-          intensity={config.point.intensity}
+          intensity={config.point.intensity * (glowIntensity / 0.8)}
           position={config.point.position}
           distance={60}
           decay={2}
         />
       )}
-
-      <fog attach="fog" args={[theme.fog, 20, 80]} />
     </>
   )
 }

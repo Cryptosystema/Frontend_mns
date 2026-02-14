@@ -7,6 +7,7 @@ import type { Mesh } from 'three'
 import { TunnelConfig, MaterialConfig } from '@/types/3d'
 import type { RegimeData } from '@/types/forecast'
 import { getRegimeColor } from './utils/regimeColors'
+import type { RegimeVisualState } from './engine/RegimeVisualEngine'
 
 const DEFAULT_TUNNEL: TunnelConfig = {
   segments: 64,
@@ -17,21 +18,44 @@ const DEFAULT_TUNNEL: TunnelConfig = {
 
 export function TunnelGeometry({
   config = DEFAULT_TUNNEL,
-  regime
+  regime,
+  visualState
 }: {
   config?: TunnelConfig
   material?: MaterialConfig
   regime?: RegimeData
+  visualState?: RegimeVisualState
 }) {
   const meshRef = useRef<Mesh>(null)
   
-  // Get color based on regime
+  // Get color based on visual state (or fallback to regime)
   const tunnelColor = useMemo(() => {
+    if (visualState) {
+      return visualState.tunnelColor
+    }
     if (regime) {
       return getRegimeColor(regime)
     }
     return '#0088ff'
-  }, [regime])
+  }, [visualState, regime])
+  
+  // Material properties from visual state
+  const materialProps = useMemo(() => {
+    if (visualState) {
+      return {
+        opacity: visualState.tunnelOpacity,
+        emissiveIntensity: visualState.tunnelEmissive,
+        metalness: visualState.metalness,
+        roughness: visualState.roughness
+      }
+    }
+    return {
+      opacity: 0.3,
+      emissiveIntensity: 0.2,
+      metalness: 0.2,
+      roughness: 0.5
+    }
+  }, [visualState])
 
   // Slow rotation animation
   useFrame((state) => {
@@ -54,14 +78,16 @@ export function TunnelGeometry({
         ]}
       />
 
-      {/* Basic material */}
+      {/* Semantic material - reflects regime intelligence */}
       <meshStandardMaterial
         color={tunnelColor}
         transparent={true}
-        opacity={0.3}
+        opacity={materialProps.opacity}
         wireframe={false}
         emissive={tunnelColor}
-        emissiveIntensity={0.2}
+        emissiveIntensity={materialProps.emissiveIntensity}
+        metalness={materialProps.metalness}
+        roughness={materialProps.roughness}
         side={THREE.BackSide}
       />
     </mesh>

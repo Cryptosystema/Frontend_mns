@@ -2,6 +2,7 @@
 // @ts-nocheck - Three.js JSX elements from React Three Fiber
 import { Suspense, useMemo } from 'react'
 import { Canvas } from '@react-three/fiber'
+import * as THREE from 'three'
 import { CameraControls } from './CameraControls'
 import { Lighting } from './Lighting'
 import { ProbabilitySurface } from './ProbabilitySurface'
@@ -15,6 +16,7 @@ import { use3DEnabled } from '@/hooks/3d/use3DEnabled'
 import { useAdaptiveQuality } from './PerformanceSettings'
 import { usePerformanceMonitor } from '@/hooks/3d/usePerformanceMonitor'
 import type { RegimeType } from './config/regimePalette'
+import { computeRegimeVisualState, validatePerformanceConstraints, getFogParameters } from './engine/RegimeVisualEngine'
 
 function LoadingFallback() {
   return (
@@ -59,6 +61,15 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
   
   const regime = mapRegimeToType(forecastData.regime?.stress)
   
+  // Compute semantic visual state from regime and confidence
+  const visualState = useMemo(() => {
+    const confidence = forecastData.tiers?.tier0?.confidence ?? 0.75
+    const rawState = computeRegimeVisualState(regime, confidence)
+    return validatePerformanceConstraints(rawState)
+  }, [regime, forecastData.tiers?.tier0?.confidence])
+  
+  const fogParams = useMemo(() => getFogParameters(visualState), [visualState])
+  
   return (
     <div style={{ width: '100%', height: '500px', position: 'relative' }}>
       <Suspense fallback={<LoadingFallback />}>
@@ -71,11 +82,26 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
             powerPreference: 'high-performance'
           }}
           dpr={quality.pixelRatio}
+          onCreated={({ scene }) => {
+            // Apply semantic fog depth
+            scene.fog = new THREE.Fog(
+              fogParams.color,
+              fogParams.near,
+              fogParams.far
+            )
+          }}
         >
-          <Lighting regime={regime} />
+          <Lighting 
+            regime={regime}
+            visualState={visualState}
+          />
           <CameraControls />
           
-          <AdaptiveTunnel enabled={is3DEnabled} regime={forecastData.regime} />
+          <AdaptiveTunnel 
+            enabled={is3DEnabled}
+            regime={forecastData.regime}
+            visualState={visualState}
+          />
           
           <ProbabilitySurface 
             forecastData={forecastData}
@@ -87,6 +113,7 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
           <ParticleSystem 
             count={quality.particleCount}
             regime={regime}
+            visualState={visualState}
           />
           
           <Environment regime={regime} />

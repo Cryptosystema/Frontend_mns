@@ -4,41 +4,47 @@ import { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getRegimeTheme, type RegimeType } from './config/regimePalette'
+import type { RegimeVisualState } from './engine/RegimeVisualEngine'
 
 interface ParticleSystemProps {
   count?: number
   regime?: RegimeType
+  visualState?: RegimeVisualState
 }
 
 export function ParticleSystem({ 
   count = 1000,
-  regime = 'NORMAL'
+  regime = 'NORMAL',
+  visualState
 }: ParticleSystemProps) {
   const pointsRef = useRef<THREE.Points>(null)
   const theme = getRegimeTheme(regime)
 
-  const particleConfig = useMemo(() => {
-    const baseSpeed = 0.03
-    const speedMultipliers: Record<RegimeType, number> = {
-      NORMAL: 1.0,
-      COMPRESSION: 1.5,
-      ELEVATED_STRESS: 2.0,
-      CRITICAL: 2.5
+  // Apply density multiplier from visual state (capped at 1.5x)
+  const actualCount = useMemo(() => {
+    if (visualState) {
+      return Math.floor(count * visualState.particleDensity)
     }
+    return count
+  }, [count, visualState])
+
+  const particleConfig = useMemo(() => {
+    // Use visual state speed if available, otherwise fallback
+    const speed = visualState?.particleSpeed ?? 0.03
 
     return {
-      speed: baseSpeed * speedMultipliers[regime],
+      speed,
       size: 0.04,
       color: new THREE.Color(theme.particles),
       opacity: 0.4
     }
-  }, [regime, theme])
+  }, [visualState, theme])
 
   const { positions, velocities } = useMemo(() => {
-    const positions = new Float32Array(count * 3)
-    const velocities = new Float32Array(count * 3)
+    const positions = new Float32Array(actualCount * 3)
+    const velocities = new Float32Array(actualCount * 3)
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < actualCount; i++) {
       const i3 = i * 3
 
       const angle = Math.random() * Math.PI * 2
@@ -58,7 +64,7 @@ export function ParticleSystem({
     }
 
     return { positions, velocities }
-  }, [count, particleConfig.speed])
+  }, [actualCount, particleConfig.speed])
 
   useFrame((state) => {
     if (!pointsRef.current) return
@@ -66,7 +72,7 @@ export function ParticleSystem({
     const positions = pointsRef.current.geometry.attributes.position.array as Float32Array
     const time = state.clock.elapsedTime
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < actualCount; i++) {
       const i3 = i * 3
 
       positions[i3] += velocities[i3]
@@ -98,7 +104,7 @@ export function ParticleSystem({
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          count={count}
+          count={actualCount}
           array={positions}
           itemSize={3}
         />

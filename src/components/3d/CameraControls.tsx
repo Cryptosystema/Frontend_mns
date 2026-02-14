@@ -30,8 +30,10 @@ export function CameraControls({ config = DEFAULT_CAMERA }: { config?: CameraCon
   return (
     <OrbitControls
       enableDamping
-      dampingFactor={0.05}
+      dampingFactor={0.08}          // Slightly higher for smoother inertia
+      rotateSpeed={0.5}              // Slower rotation for premium feel
       enableZoom={true}
+      zoomSpeed={0.6}                // Controlled zoom
       enablePan={false}
       enableRotate={true}
       minDistance={10}

@@ -2,13 +2,15 @@ import { useMemo } from 'react'
 import { TunnelGeometry } from './TunnelGeometry'
 import { useAdaptiveQuality } from './PerformanceSettings'
 import type { RegimeData } from '@/types/forecast'
+import type { RegimeVisualState } from './engine/RegimeVisualEngine'
 
 interface AdaptiveTunnelProps {
   enabled: boolean
   regime?: RegimeData
+  visualState?: RegimeVisualState
 }
 
-export function AdaptiveTunnel({ enabled, regime }: AdaptiveTunnelProps) {
+export function AdaptiveTunnel({ enabled, regime, visualState }: AdaptiveTunnelProps) {
   const quality = useAdaptiveQuality(enabled)
 
   // Adjust tunnel geometry complexity based on quality
@@ -31,5 +33,5 @@ export function AdaptiveTunnel({ enabled, regime }: AdaptiveTunnelProps) {
     return baseConfig
   }, [quality.particleCount])
 
-  return <TunnelGeometry config={tunnelConfig} regime={regime} />
+  return <TunnelGeometry config={tunnelConfig} regime={regime} visualState={visualState} />
 }

@@ -1,0 +1,7 @@
+{
+  "git.alwaysSignOff": false,
+  "git.requireGitUserConfig": false,
+  "git.allowNoVerifyCommit": true,
+  "git.postCommitCommand": "push",
+  "git.enableCommitSigning": false
+}
