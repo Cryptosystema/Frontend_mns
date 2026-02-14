@@ -3,5 +3,10 @@
   "git.requireGitUserConfig": false,
   "git.allowNoVerifyCommit": true,
   "git.postCommitCommand": "push",
-  "git.enableCommitSigning": false
+  "git.enableCommitSigning": false,
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180,
+  "git.showPushSuccessNotification": true
 }
