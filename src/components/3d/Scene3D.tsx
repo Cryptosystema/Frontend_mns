@@ -7,7 +7,7 @@ import { CameraControls } from './CameraControls'
 import { Lighting } from './Lighting'
 import { ProbabilitySurface } from './ProbabilitySurface'
 import { ParticleSystem } from './ParticleSystem'
-import { MarketSurface } from './MarketSurface'
+import { DataEngineScene } from './DataEngineScene'
 import { Environment } from './Environment'
 import { ShareControlsUI } from './ShareControls'
 import { Scene3DProps } from '@/types/3d'
@@ -92,7 +92,7 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
     <div style={{ width: '100%', height: '500px', position: 'relative' }}>
       <Suspense fallback={<LoadingFallback />}>
         <Canvas
-          camera={{ position: [0, 5, 15], fov: 75 }}
+          camera={{ position: [0, 12, 20], fov: 55 }}
           style={{ background: '#0a0e14' }}
           gl={{ 
             antialias: quality.antialiasing,
@@ -114,24 +114,11 @@ export function Scene3D({ data, onInteraction }: Scene3DProps) {
           />
           <CameraControls />
           
-          <MarketSurface 
+          <DataEngineScene 
             regime={regime}
             visualState={visualState}
             confidence={marketParams.confidence}
             volatility={marketParams.volatility}
-          />
-          
-          <ProbabilitySurface 
-            forecastData={forecastData}
-            tunnelLength={50}
-            tunnelRadius={5}
-            regime={regime}
-          />
-
-          <ParticleSystem 
-            count={quality.particleCount}
-            regime={regime}
-            visualState={visualState}
           />
           
           <Environment regime={regime} />
