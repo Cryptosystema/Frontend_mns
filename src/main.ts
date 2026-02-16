@@ -31,7 +31,6 @@ import {
    ============================================ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Scene3D } from './components/3d/index';
 import { MarketNavigationScene } from './components/3d/market-nav';
 import type { MarketNavigationData } from './components/3d/market-nav';
 
