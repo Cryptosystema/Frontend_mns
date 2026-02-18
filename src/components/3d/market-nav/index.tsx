@@ -107,10 +107,14 @@ export function MarketNavigationScene() {
 
   // Compute target peak heights from API data
   const targetHeights = useMemo(
-    () =>
-      data
+    () => {
+      const heights = data
         ? computePeakHeights(data, regimes)
-        : PEAKS.map((p) => p.baseHeight * p.normalizer(null)),
+        : PEAKS.map((p) => p.baseHeight * p.normalizer(null))
+      console.log('[MarketNavigationScene] 📊 Peak heights computed:', heights)
+      console.log('[MarketNavigationScene] 📊 PEAKS count:', PEAKS.length, 'Heights count:', heights.length)
+      return heights
+    },
     [data, regimes]
   )
 
@@ -119,8 +123,23 @@ export function MarketNavigationScene() {
 
   const colors = getRegimeColors(regime)
 
-  if (loading) return <LoadingScreen />
-  if (error && !data) return <ErrorScreen message={error} />
+  console.log('[MarketNavigationScene] 🎨 Render state:', {
+    loading,
+    error,
+    hasData: !!data,
+    hasRegimes: !!regimes,
+    peakHeightsLength: animatedHeights.length,
+    regime
+  })
+
+  if (loading) {
+    console.log('[MarketNavigationScene] ⏳ Still loading...')
+    return <LoadingScreen />
+  }
+  if (error && !data) {
+    console.log('[MarketNavigationScene] ❌ Error state:', error)
+    return <ErrorScreen message={error} />
+  }
 
   return (
     <div style={{ width: '100%', height: '500px' }}>

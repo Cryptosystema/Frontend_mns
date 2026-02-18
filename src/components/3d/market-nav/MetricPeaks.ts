@@ -149,15 +149,23 @@ export function computePeakHeights(
 ): number[] {
   const merged = { ...apiData, regimes: regimesData }
 
-  return PEAKS.map((peak) => {
+  console.log('[computePeakHeights] Input:', { apiData, regimesData })
+
+  const heights = PEAKS.map((peak, index) => {
     if (!peak.dataPath) {
-      // Aesthetic peak — constant
-      return peak.baseHeight * peak.normalizer(null)
+      const h = peak.baseHeight * peak.normalizer(null)
+      console.log(`[computePeakHeights] Peak ${index} (${peak.id}): aesthetic, height=${h.toFixed(2)}`)
+      return h
     }
     const rawValue = getNestedValue(merged, peak.dataPath)
     const multiplier = peak.normalizer(rawValue)
-    return peak.baseHeight * multiplier
+    const h = peak.baseHeight * multiplier
+    console.log(`[computePeakHeights] Peak ${index} (${peak.id}): raw=${rawValue}, mult=${multiplier.toFixed(2)}, height=${h.toFixed(2)}`)
+    return h
   })
+
+  console.log('[computePeakHeights] Final heights:', heights)
+  return heights
 }
 
 // ─── Regime color system ──────────────────────────────────────────
