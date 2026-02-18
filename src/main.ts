@@ -1146,13 +1146,10 @@ function initialize3DScene(): void {
     console.log('[Phase28] ⚛️ Creating React root...');
     scene3DRoot = ReactDOM.createRoot(container);
     
-    // Render MarketNavigationScene component with initial data
+    // Render MarketNavigationScene (component fetches its own data)
     console.log('[Phase28] 🎨 Rendering MarketNavigationScene component...');
-    const initialData = transformTo3DData(cachedForecast);
     scene3DRoot.render(
-      React.createElement(MarketNavigationScene, {
-        data: initialData
-      })
+      React.createElement(MarketNavigationScene)
     );
     
     console.log('[Phase28] ✅ 3D visualization initialized successfully!');
@@ -1169,20 +1166,11 @@ function initialize3DScene(): void {
  * Update 3D scene with new forecast data
  * Called when cachedForecast updates
  */
-function update3DScene(forecastData: ForecastData | null): void {
+function update3DScene(_forecastData: ForecastData | null): void {
+  // MarketNavigationScene now manages its own data fetching via useMarketData hook.
+  // This function is retained for compatibility but is effectively a no-op.
   if (!scene3DRoot) return;
-  
-  try {
-    const navigationData = transformTo3DData(forecastData);
-    scene3DRoot.render(
-      React.createElement(MarketNavigationScene, {
-        data: navigationData
-      })
-    );
-    console.log('[Phase28] ✅ 3D scene updated with new data');
-  } catch (err) {
-    console.error('[Phase28] Failed to update 3D scene:', err);
-  }
+  console.log('[Phase28] Scene manages its own data — external update skipped');
 }
 
 /* ============================================
