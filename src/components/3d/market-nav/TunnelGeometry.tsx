@@ -67,7 +67,7 @@ export function TunnelGeometry({
 
     geo.computeVertexNormals()
     return geo
-  }, [peakHeights])
+  }, [peakHeights.join(',')])
 
   return (
     <group rotation={[-Math.PI / 3.2, 0, 0]} position={[0, -4, 0]}>

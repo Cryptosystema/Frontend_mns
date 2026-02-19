@@ -32,9 +32,12 @@ export function usePeakAnimation(
       // Ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3)
 
-      const newHeights = targetRef.current.map((target, i) => {
-        const start = startHeightsRef.current[i] ?? target
-        return start + (target - start) * eased
+      const target = targetRef.current
+      const start = startHeightsRef.current
+      if (target.length === 0) return
+      const newHeights = target.map((t, i) => {
+        const s = (i < start.length ? start[i] : null) ?? t
+        return s + (t - s) * eased
       })
 
       setCurrentHeights(newHeights)
