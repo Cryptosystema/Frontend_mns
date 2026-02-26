@@ -31,7 +31,11 @@ import {
    ============================================ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { MarketNavigationScene } from "./components/3d/market-nav"
+import { Canvas } from '@react-three/fiber';
+import { EffectComposer, UnrealBloomPass } from '@react-three/drei';
+import { NeuralTunnel } from './components/3d/market-nav/NeuralTunnel';
+import { useMarketData } from './components/3d/market-nav/hooks/useMarketData';
+import React, { useMemo } from 'react';
 
 
 
@@ -1146,10 +1150,41 @@ function initialize3DScene(): void {
     console.log('[Phase28] ⚛️ Creating React root...');
     scene3DRoot = ReactDOM.createRoot(container);
     
-    // Render MarketNavigationScene (component fetches its own data)
-    console.log('[Phase28] 🎨 Rendering MarketNavigationScene component...');
+    // Render NeuralTunnel with live market data
+    console.log('[Phase28] 🎨 Rendering NeuralTunnel component...');
+    function Scene3DWrapper() {
+      const { data, regimes, loading } = useMarketData();
+      // Map regimes to regime number: 0 = NORMAL, 1 = STRESS
+      const regimeStr = regimes?.stress_regime || 'NORMAL';
+      const regime = regimeStr === 'STRESS' ? 1 : 0;
+      // Fallbacks for missing data
+      const sseData = useMemo(() => ({
+        volatility: typeof data?.tier0?.confidence === 'number' ? data.tier0.confidence : 0.5,
+        confidence: typeof data?.tier0?.confidence === 'number' ? data.tier0.confidence : 0.5,
+        regime,
+        mu: typeof data?.tier0?.p50 === 'number' ? 0 : 0, // Centered for now
+        sigma: typeof data?.tier0?.p90 === 'number' && typeof data?.tier0?.p10 === 'number' ? Math.max((data.tier0.p90 - data.tier0.p10) / 2, 0.01) : 1,
+      }), [data, regime]);
+      if (loading) return <div style={{width:'100%',height:'540px',display:'flex',alignItems:'center',justifyContent:'center',background:'#000306',color:'#00E5FF',fontFamily:'monospace',fontSize:13,letterSpacing:'0.1em'}}>INITIALIZING MARKET NAVIGATION...</div>;
+      return (
+        <div style={{ width: '100%', height: '540px' }}>
+          <Canvas
+            camera={{ position: [0, 8, 20], fov: 65, near: 0.1, far: 200 }}
+            gl={{ antialias: true, powerPreference: 'high-performance', alpha: false }}
+            dpr={[1, 2]}
+            style={{ background: '#0a1428' }}
+          >
+            {/* UnrealBloomPass globally for Tron effect */}
+            <EffectComposer>
+              <UnrealBloomPass threshold={0.1} strength={1.2} radius={0.8} />
+            </EffectComposer>
+            <NeuralTunnel sseData={sseData} />
+          </Canvas>
+        </div>
+      );
+    }
     scene3DRoot.render(
-      React.createElement(MarketNavigationScene)
+      React.createElement(Scene3DWrapper)
     );
     
     console.log('[Phase28] ✅ 3D visualization initialized successfully!');
