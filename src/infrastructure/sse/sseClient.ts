@@ -199,33 +199,13 @@ export class SSEClient {
       this.logLifecycle(`Connecting to ${this.config.endpoint}`);
       console.log("[SSE] Initializing connection to:", this.config.endpoint);
       
-      // Используем абсолютный endpoint, если не начинается с http
-      let endpoint = this.config.endpoint;
-      if (!/^https?:\/\//.test(endpoint)) {
-        endpoint = `https://mns-core-minimal-test.fly.dev${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-      }
-      // withCredentials и headers (если нужно)
-      this.eventSource = new EventSource(endpoint, {
-        withCredentials: this.config.withCredentials ?? false
+      this.eventSource = new EventSource(this.config.endpoint, {
+        withCredentials: false
       });
       
       // Standard EventSource events
-      // Повторное подключение при ошибке (если соединение закрыто)
-      this.eventSource.onerror = (e) => {
-        this.handleError(e);
-        const readyState = this.eventSource?.readyState ?? -1;
-        if (readyState === EventSource.CLOSED) {
-          setTimeout(() => {
-            this.disconnect();
-            this.connect();
-          }, 3000); // 3 секунды пауза
-        }
-      };
-      // onopen обработчик для внешнего коллбека
-      this.eventSource.onopen = (e) => {
-        this.handleOpen();
-        if (this.handlers.onOpen) this.handlers.onOpen();
-      };
+      this.eventSource.onopen = this.handleOpen.bind(this);
+      this.eventSource.onerror = this.handleError.bind(this);
       this.eventSource.onmessage = this.handleDefaultMessage.bind(this);
       
       // Custom event types (backend-specific)

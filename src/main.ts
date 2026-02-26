@@ -1230,22 +1230,16 @@ function init(): void {
       initializeCharts();
     }, 500);
     
-    // Phase 28: Initialize 3D visualization ТОЛЬКО после успешного SSE соединения
-    let sceneInitialized = false;
-    const tryInit3D = () => {
-      if (!sceneInitialized) {
-        initialize3DScene();
-        sceneInitialized = true;
-      }
-    };
-    // Start delivery controller
-    controller.handlers.onOpen = () => {
-      tryInit3D();
-    };
-    controller.start();
+    // Phase 28: Initialize 3D visualization
+    setTimeout(() => {
+      initialize3DScene();
+    }, 600);
     
     // Phase 25: Start enhanced data updates
     startPhase23Updates();
+    
+    // Start delivery controller
+    controller.start();
     
     // Hide loading and set status to READY after initial data loads
     setTimeout(() => {
