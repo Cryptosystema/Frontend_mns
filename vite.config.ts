@@ -18,6 +18,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true
       }
+    },
+    headers: {
+      // Разрешить eval для Three.js в dev-режиме (НЕ для production)
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src *; img-src * data:;"
     }
   },
   build: {
