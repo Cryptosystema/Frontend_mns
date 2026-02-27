@@ -29,7 +29,7 @@ export function TunnelGeometry({ peaks, color }: TunnelGeometryProps) {
     const peakCenters = PEAKS.map(p => [p.position.x, p.position.z] as [number, number])
 
     const baseColor = new THREE.Color(color)
-    const highColor = new THREE.Color(color).multiplyScalar(0.8)
+    const highColor = new THREE.Color(color).multiplyScalar(2.5)
 
     for (let i = 0; i <= SEGMENTS; i++) {
       for (let j = 0; j <= SEGMENTS; j++) {
@@ -39,8 +39,8 @@ export function TunnelGeometry({ peaks, color }: TunnelGeometryProps) {
         let y = FLOOR_Y
         for (let k = 0; k < Math.min(peaks.length, peakCenters.length); k++) {
           const [cx, cz] = peakCenters[k]
-          const h = peaks[k] * 0.8
-          const sigma = 2.5 + (peaks[k] * 0.3)
+          const h = peaks[k] * 1.5
+          const sigma = 3.0 + (peaks[k] * 0.2)
           y += gaussian(x, z, cx, cz, sigma, h)
         }
 
@@ -81,7 +81,7 @@ export function TunnelGeometry({ peaks, color }: TunnelGeometryProps) {
 
   return (
     <lineSegments geometry={geometry}>
-      <lineBasicMaterial vertexColors transparent opacity={0.6} />
+      <lineBasicMaterial vertexColors transparent opacity={0.85} />
     </lineSegments>
   )
 }
