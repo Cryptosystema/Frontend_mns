@@ -4,8 +4,8 @@ import { useThree } from "@react-three/fiber"
 export function CameraRig() {
   const { camera } = useThree()
   useEffect(() => {
-    camera.position.set(0, 12, 28)
-    camera.lookAt(0, 0, -5)
+    camera.position.set(0, 25, 35)
+    camera.lookAt(0, 0, 0)
   }, [camera])
   return null
 }
