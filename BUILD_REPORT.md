@@ -1,4 +1,19 @@
-# MNS TERMINAL — 3D SCENE REBUILD REPORT
+# MNS TERMINAL — BUILD REPORT
+**Date**: 2026-02-27 | **Commit**: `bb62d66` | **Status**: ✅ PASSED
+
+## Files Changed
+- `src/components/3d/market-nav/MetricPeaks.ts` — peak positions rescaled from [-0.82, 0.82] → [-12, 12]
+- `src/components/3d/market-nav/TunnelGeometry.tsx` — replaced hardcoded `peakCenters` with `PEAKS.map(p => [p.position.x, p.position.z])`; added `PEAKS` import
+
+## Root Cause Fixed
+`MetricPeaks.ts` defined positions in [-0.82, 0.82] range while `TunnelGeometry.tsx` rendered on a 40×40 grid (range -20 to +20).
+All 15 peaks were clustered in a 1×1 area → appeared as a single peak.
+Fix: positions now match grid scale, spread across [-12, 12].
+
+## Build Status
+TypeScript: ✅ 0 errors
+Push: ✅ `bb62d66` → `origin/main`
+
 **Date**: 2026-02-27  
 **Status**: ✅ BUILD PASSED  
 **Commit**: `e79d343`
