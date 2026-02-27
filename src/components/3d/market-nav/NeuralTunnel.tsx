@@ -1,6 +1,6 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame, extend, useThree } from '@react-three/fiber';
-import { Html, EffectComposer, UnrealBloomPass } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
 // --- SHADER CODE ---
@@ -133,10 +133,6 @@ export const NeuralTunnel: React.FC<NeuralTunnelProps> = ({ sseData }) => {
           opacity={0.4}
         />
       </mesh>
-      {/* Post-processing: UnrealBloomPass */}
-      <EffectComposer>
-        <UnrealBloomPass threshold={0.1} strength={1.2} radius={0.8} />
-      </EffectComposer>
       {/* HUD Overlays */}
       <Html position={[-3.5, 2.5, 2]} transform occlude style={{ minWidth: 220, backdropFilter: 'blur(10px)', background: 'rgba(10,20,40,0.55)', borderRadius: 12, padding: 16, color: '#00f2ff', fontFamily: 'JetBrains Mono, monospace', fontSize: 16, border: '1.5px solid #00f2ff' }}>
         <div>

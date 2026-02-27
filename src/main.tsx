@@ -29,13 +29,11 @@ import {
 /* ============================================
    PHASE 28: 3D VISUALIZATION IMPORTS
    ============================================ */
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React, { useMemo } from 'react';
+import { createRoot, Root } from 'react-dom/client';
 import { Canvas } from '@react-three/fiber';
-import { EffectComposer, UnrealBloomPass } from '@react-three/drei';
 import { NeuralTunnel } from './components/3d/market-nav/NeuralTunnel';
 import { useMarketData } from './components/3d/market-nav/hooks/useMarketData';
-import React, { useMemo } from 'react';
 
 
 
@@ -1098,7 +1096,7 @@ const controller = createDeliveryController(
    PHASE 28: 3D VISUALIZATION INITIALIZATION
    ============================================ */
 
-let scene3DRoot: ReactDOM.Root | null = null;
+let scene3DRoot: Root | null = null;
 
 /**
  * Initialize 3D visualization if feature flag is enabled
@@ -1148,7 +1146,7 @@ function initialize3DScene(): void {
     
     // Create React root (React 19 API)
     console.log('[Phase28] ⚛️ Creating React root...');
-    scene3DRoot = ReactDOM.createRoot(container);
+    scene3DRoot = createRoot(container);
     
     // Render NeuralTunnel with live market data
     console.log('[Phase28] 🎨 Rendering NeuralTunnel component...');
@@ -1174,10 +1172,6 @@ function initialize3DScene(): void {
             dpr={[1, 2]}
             style={{ background: '#0a1428' }}
           >
-            {/* UnrealBloomPass globally for Tron effect */}
-            <EffectComposer>
-              <UnrealBloomPass threshold={0.1} strength={1.2} radius={0.8} />
-            </EffectComposer>
             <NeuralTunnel sseData={sseData} />
           </Canvas>
         </div>
